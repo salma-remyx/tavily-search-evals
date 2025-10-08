@@ -33,9 +33,15 @@ class PerplexitySearchHandler(ProviderHandler):
         super().__init__(
             api_key=os.getenv("PERPLEXITY_API_KEY"),
             api_url=PERPLEXITY_API_URL,
+<<<<<<< HEAD
             search_params=search_params
         )
         self.token_model = token_model
+=======
+            search_params=search_params,
+            token_model=token_model
+        )
+>>>>>>> origin/main
 
         self.is_llm_response = False
 
