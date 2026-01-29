@@ -27,7 +27,6 @@ if not logger.handlers:
 
 TAVILY_DEFAULT_CONFIG = {
     "search_depth": "advanced",
-    "include_raw_content": True,
     "max_results": 10,
 }
 
