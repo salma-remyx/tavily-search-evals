@@ -1,0 +1,6 @@
+{
+  "claude_code": {
+    "allowed_tools": ["WebSearch"],
+    "timeout": 120
+  }
+}
