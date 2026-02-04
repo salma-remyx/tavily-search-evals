@@ -1,5 +1,9 @@
 {
   "claude_code_tavily": {
-    "timeout": 120
+    "timeout": 120,
+    "search_depth": "advanced",
+    "max_results": 10,
+    "extract_depth": "advanced",
+    "max_turns": 3
   }
 }

@@ -26,7 +26,7 @@ class ClaudeCodeHandler:
         self.is_llm_response = True  # Claude Code returns LLM responses directly
 
         # Configure which tools to allow - default to WebSearch only
-        self.allowed_tools = self.params.get("allowed_tools", ["WebSearch"])
+        self.allowed_tools = self.params.get("allowed_tools", ["WebSearch","WebFetch"])
         self.model = self.params.get("model", None)  # Use default if not specified
         self.timeout = self.params.get("timeout", 120)  # Timeout in seconds
 

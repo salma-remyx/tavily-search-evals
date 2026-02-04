@@ -7,3 +7,5 @@ python-dotenv==1.1.0
 numpy==1.26.4
 tiktoken==0.11.0
 quotientai==0.4.14
+claude-agent-sdk==0.1.29
+tavily-python==0.7.21

@@ -1,0 +1,9 @@
+{
+  "claude_code": {
+    "allowed_tools": ["WebSearch"],
+    "timeout": 120
+  },
+  "claude_code_tavily": {
+    "timeout": 120
+  }
+}

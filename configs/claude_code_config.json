@@ -1,6 +1,6 @@
 {
   "claude_code": {
-    "allowed_tools": ["WebSearch"],
+    "allowed_tools": ["WebSearch","WebFetch"],
     "timeout": 120
   }
 }

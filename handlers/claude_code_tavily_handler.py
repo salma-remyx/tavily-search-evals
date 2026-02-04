@@ -1,26 +1,202 @@
 """
-Handler for Claude Code CLI with Tavily MCP for web search.
+Handler for Claude Agent SDK with custom Tavily tools.
 
-Uses --allowedTools to restrict Claude to only use mcp__tavily__tavily_search.
-Requires Tavily MCP to be configured locally via: claude mcp add
+Uses the Claude Agent SDK with a custom MCP server for Tavily search and extract.
+Replaces native WebSearch with tavily_search and WebFetch with tavily_extract.
+
+Defaults:
+- search_depth: "advanced", max_results: 10
+- extract_depth: "advanced"
 """
-import os
 import asyncio
 import json
 import logging
 from typing import Dict, Any, Optional
 
+from tavily import AsyncTavilyClient
+from claude_agent_sdk import query, ClaudeAgentOptions, tool, create_sdk_mcp_server
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    console_handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+
+# Default parameters (can be overridden via config)
+DEFAULT_SEARCH_DEPTH = "advanced"
+DEFAULT_MAX_RESULTS = 10
+DEFAULT_EXTRACT_DEPTH = "advanced"
+DEFAULT_MAX_TURNS = 3  # search → extract → answer
+
+
+def create_tavily_search_tool(search_depth: str = DEFAULT_SEARCH_DEPTH, max_results: int = DEFAULT_MAX_RESULTS):
+    """Create a Tavily search tool with configurable defaults."""
+    
+    @tool(
+        "tavily_search",
+        f"""Search the web using Tavily's AI-powered search API. Returns relevant search results with content snippets.
+
+This tool uses search_depth="{search_depth}" and max_results={max_results} by default.
+
+Parameters:
+- query: Search query (keep under 400 chars, think search query not long prompt)""",
+        {
+            "query": str,
+        }
+    )
+    async def tavily_search(args: dict[str, Any]) -> dict[str, Any]:
+        """Execute a Tavily search query using the official SDK."""
+        try:
+            client = AsyncTavilyClient()
+            search_query = args["query"]
+
+            if len(search_query) > 400:
+                search_query = search_query[:400]
+
+            search_kwargs = {
+                "query": search_query,
+                "search_depth": search_depth,
+                "max_results": max_results,
+            }
+
+            logger.info("[tavily_search] ✓ TAVILY SEARCH API CALLED")
+
+            response = await client.search(**search_kwargs)
+
+            results = response.get("results", [])
+            result_text = [f"Search Results for: {search_query}\n"]
+            result_text.append(f"Total results: {len(results)}\n")
+
+            for i, r in enumerate(results, 1):
+                result_text.append(f"\n{i}. {r.get('title', 'No title')}")
+                result_text.append(f"   URL: {r.get('url', 'No URL')}")
+                content = r.get("content", "No content")
+                if content:
+                    result_text.append(f"   Content: {content[:500]}")
+
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": "\n".join(result_text)
+                }]
+            }
+
+        except Exception as e:
+            logger.error(f"[tavily_search] Error: {str(e)}")
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": f"Error executing Tavily search: {str(e)}"
+                }]
+            }
+
+    return tavily_search
+
+
+def create_tavily_extract_tool(extract_depth: str = DEFAULT_EXTRACT_DEPTH):
+    """Create a Tavily extract tool with configurable defaults."""
+    
+    @tool(
+        "tavily_extract",
+        f"""Extract clean content from URLs using Tavily's extract API. Use this to fetch and read web page content.
+
+This tool uses extract_depth="{extract_depth}" by default (handles JS-rendered pages, tables, complex content).
+
+Parameters:
+- urls: List of URLs to extract content from
+- query: Optional - reranks extracted chunks by relevance to this query (recommended for focused extraction)
+- chunks_per_source: Number of relevant chunks per URL (1-5, max 500 chars each). Only works with query.""",
+        {
+            "urls": list,
+            "query": str,
+            "chunks_per_source": int,
+        }
+    )
+    async def tavily_extract(args: dict[str, Any]) -> dict[str, Any]:
+        """Extract content from URLs using the official Tavily SDK."""
+        try:
+            client = AsyncTavilyClient()
+
+            urls = args.get("urls", [])
+            if not urls:
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": "Error: No URLs provided for extraction"
+                    }]
+                }
+
+            # Handle case where urls is passed as a string instead of list
+            if isinstance(urls, str):
+                if urls.startswith("["):
+                    try:
+                        urls = json.loads(urls)
+                    except:
+                        pass
+                
+                if isinstance(urls, str):
+                    urls = [u.strip().strip('"').strip("'") for u in urls.split(",")]
+            
+            # Filter to valid URLs only
+            valid_urls = [url for url in urls if isinstance(url, str) and url.startswith(("http://", "https://"))]
+            
+            if not valid_urls:
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": f"Error: No valid URLs provided. Received: {urls[:3]}"
+                    }]
+                }
+            
+            urls = valid_urls
+
+            extract_kwargs = {
+                "urls": urls,
+                "extract_depth": extract_depth,
+            }
+
+            if args.get("query"):
+                extract_kwargs["query"] = args["query"]
+                chunks = args.get("chunks_per_source", 3)
+                extract_kwargs["chunks_per_source"] = min(max(chunks, 1), 5)
+
+            logger.info("[tavily_extract] ✓ TAVILY EXTRACT API CALLED")
+
+            response = await client.extract(**extract_kwargs)
+
+            results = response.get("results", [])
+            result_text = [f"Extracted Content from {len(results)} URLs:\n"]
+
+            for result in results:
+                result_text.append(f"\n--- URL: {result.get('url', 'Unknown')} ---")
+                content = result.get("raw_content", "No content extracted")
+                if len(content) > 3000:
+                    content = content[:3000] + "... [truncated]"
+                result_text.append(content)
+
+            failed = response.get("failed_results", [])
+            if failed:
+                result_text.append("\n\nFailed URLs:")
+                for f in failed:
+                    result_text.append(f"  - {f.get('url')}: {f.get('error')}")
+
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": "\n".join(result_text)
+                }]
+            }
+
+        except Exception as e:
+            logger.error(f"[tavily_extract] Error: {str(e)}")
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": f"Error executing Tavily extract: {str(e)}"
+                }]
+            }
+
+    return tavily_extract
 
 
 class ClaudeCodeTavilyHandler:
-    """Handler for invoking Claude Code CLI with Tavily MCP for search."""
+    """Handler for Claude Agent SDK with custom Tavily MCP for search and extract."""
 
     def __init__(
         self,
@@ -30,127 +206,130 @@ class ClaudeCodeTavilyHandler:
         """Initialize the Claude Code Tavily handler.
 
         Args:
-            params: Configuration parameters (e.g., model, timeout)
-            token_model: Model name for token counting (not used for Claude Code)
+            params: Configuration parameters including:
+                - model: Claude model to use
+                - timeout: Request timeout in seconds (default: 120)
+                - search_depth: Tavily search depth (default: "advanced")
+                - max_results: Max search results (default: 10)
+                - extract_depth: Tavily extract depth (default: "advanced")
+                - max_turns: Max agent turns (default: 3, min 2 for search→answer)
+            token_model: Model name for token counting (not used)
         """
         self.params = params or {}
         self.token_model = token_model
-        self.is_llm_response = True  # Claude Code returns LLM responses directly
+        self.is_llm_response = True
 
-        self.model = self.params.get("model", None)  # Use default if not specified
-        self.timeout = self.params.get("timeout", 120)  # Timeout in seconds
+        self.model = self.params.get("model", None)
+        self.timeout = self.params.get("timeout", 120)
+        
+        self.search_depth = self.params.get("search_depth", DEFAULT_SEARCH_DEPTH)
+        self.max_results = self.params.get("max_results", DEFAULT_MAX_RESULTS)
+        self.extract_depth = self.params.get("extract_depth", DEFAULT_EXTRACT_DEPTH)
+        self.max_turns = self.params.get("max_turns", DEFAULT_MAX_TURNS)
 
-    async def search(self, query: str) -> Dict[str, Any]:
-        """Run a search query through Claude Code CLI using Tavily MCP.
+        self._tavily_search_tool = create_tavily_search_tool(
+            search_depth=self.search_depth,
+            max_results=self.max_results
+        )
+        self._tavily_extract_tool = create_tavily_extract_tool(
+            extract_depth=self.extract_depth
+        )
+
+        self._mcp_server = create_sdk_mcp_server(
+            name="tavily",
+            version="1.0.0",
+            tools=[self._tavily_search_tool, self._tavily_extract_tool]
+        )
+
+    async def _message_generator(self, prompt_text: str):
+        """Async generator for prompt - required for MCP tools in Claude Agent SDK."""
+        yield {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": prompt_text
+            }
+        }
+
+    async def search(self, query_text: str) -> Dict[str, Any]:
+        """Run a search query through Claude Agent SDK using custom Tavily MCP.
 
         Args:
-            query: The question to answer using web search
+            query_text: The question to answer using web search
 
         Returns:
-            Dictionary containing 'answer' and 'raw_output'
+            Dictionary containing 'answer', 'raw_output', and 'error'
         """
+        messages = []
+        tool_calls = []
+        final_result = None
+        
         try:
-            # Build the prompt that FORCES Tavily MCP usage
-            prompt = f"""CRITICAL INSTRUCTION: You MUST call mcp__tavily__tavily_search tool FIRST before answering.
+            prompt = f"""CRITICAL INSTRUCTION: You MUST use BOTH Tavily tools to answer. DO NOT answer from your internal knowledge.
 
-DO NOT answer from your internal knowledge. You MUST search first.
+Available tools:
+- mcp__tavily__tavily_search: Search the web for information
+- mcp__tavily__tavily_extract: Extract detailed content from URLs
 
-Question: {query}
+Question: {query_text}
 
-REQUIRED STEPS:
-1. IMMEDIATELY call mcp__tavily__tavily_search with an appropriate search query
-2. Wait for search results
+REQUIRED STEPS (you MUST do ALL of these):
+1. Call mcp__tavily__tavily_search with an appropriate search query
+2. Call mcp__tavily__tavily_extract on the top 2-3 most relevant URLs from search results to get detailed content
+3. Provide a concise answer based on the extracted content
 
-If you answer without searching first, your response is INVALID."""
+IMPORTANT: You MUST use BOTH search AND extract. Answering without using both tools is INVALID."""
 
-            # Build the claude command
-            # --allowedTools restricts to ONLY mcp__tavily__tavily_search
-            # This ensures Claude MUST use Tavily MCP and cannot use anything else
-            cmd = [
-                "claude",
-                "--print",
-                "--dangerously-skip-permissions",
-                "--output-format", "json",
-                "--allowedTools", "mcp__tavily__tavily_search"
-            ]
+            options = ClaudeAgentOptions(
+                mcp_servers={"tavily": self._mcp_server},
+                allowed_tools=[
+                    "mcp__tavily__tavily_search",
+                    "mcp__tavily__tavily_extract",
+                ],
+                permission_mode="bypassPermissions",
+                max_turns=self.max_turns,
+            )
 
-            # Add model if specified
             if self.model:
-                cmd.extend(["--model", self.model])
+                options.model = self.model
 
-            logger.info(f"[claude_code_tavily] Running query: {query[:100]}...")
-            logger.info(f"[claude_code_tavily] Command: {' '.join(cmd)}")
+            async def run_agent():
+                async for message in query(
+                    prompt=self._message_generator(prompt),
+                    options=options
+                ):
+                    msg_info = {
+                        "type": getattr(message, "type", None),
+                        "subtype": getattr(message, "subtype", None),
+                    }
 
-            # Create subprocess - pass prompt via stdin
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env={**os.environ}
-            )
+                    if hasattr(message, "tool_name"):
+                        tool_call = {
+                            "tool_name": message.tool_name,
+                            "tool_input": getattr(message, "tool_input", None),
+                        }
+                        tool_calls.append(tool_call)
+                        msg_info["tool_name"] = message.tool_name
 
-            # Wait for completion with timeout, passing prompt via stdin
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(input=prompt.encode('utf-8')),
-                timeout=self.timeout
-            )
+                    if hasattr(message, "result"):
+                        nonlocal final_result
+                        final_result = message.result
+                        msg_info["result"] = message.result
 
-            output = stdout.decode('utf-8').strip()
-            error = stderr.decode('utf-8').strip()
+                    messages.append(msg_info)
 
-            if process.returncode != 0:
-                logger.error(f"[claude_code_tavily] Command failed with error: {error}")
-                return {
-                    "answer": f"ERROR: {error or 'Unknown error'}",
-                    "raw_output": output,
-                    "error": error
-                }
+            await asyncio.wait_for(run_agent(), timeout=self.timeout)
 
-            # Parse JSON output to extract tool usage info
-            try:
-                result_json = json.loads(output)
-                answer = result_json.get("result", output)
-
-                # Log tool usage from modelUsage
-                model_usage = result_json.get("modelUsage", {})
-                for model_name, usage in model_usage.items():
-                    web_search_requests = usage.get("webSearchRequests", 0)
-                    logger.info(f"[claude_code_tavily] Model {model_name}: webSearchRequests={web_search_requests}")
-
-                # Log the number of turns (tool calls)
-                num_turns = result_json.get("num_turns", 0)
-                logger.info(f"[claude_code_tavily] Number of turns: {num_turns}")
-
-                # Log session_id for debugging
-                session_id = result_json.get("session_id", "unknown")
-                logger.info(f"[claude_code_tavily] Session ID: {session_id}")
-
-                # Save raw output for debugging
-                debug_file = f"/tmp/claude_code_tavily_debug_{session_id}.json"
-                with open(debug_file, 'w') as f:
-                    f.write(output)
-                logger.info(f"[claude_code_tavily] Raw output saved to: {debug_file}")
-
-                # Check if Tavily MCP was used
-                # Since --allowedTools only allows mcp__tavily__tavily_search:
-                # - num_turns > 1 means a tool was called
-                # - webSearchRequests=0 confirms it wasn't native WebSearch
-                # Therefore, the only tool that could have been called is mcp__tavily__tavily_search
-                if num_turns > 1 and all(u.get("webSearchRequests", 0) == 0 for u in model_usage.values()):
-                    logger.info("[claude_code_tavily] ✓ Tavily MCP was used (num_turns=%d, no native WebSearch)", num_turns)
-                elif num_turns == 1:
-                    logger.warning("[claude_code_tavily] ⚠ No tool was called (num_turns=1) - answered from memory")
-                else:
-                    logger.warning("[claude_code_tavily] ⚠ Unexpected state: num_turns=%d", num_turns)
-
-            except json.JSONDecodeError:
-                logger.warning("[claude_code_tavily] Could not parse JSON output, using raw output")
-                answer = output
+            answer = final_result if final_result else ""
+            raw_output = json.dumps({
+                "messages": messages,
+                "tool_calls": tool_calls,
+                "result": final_result
+            }, indent=2, default=str)
 
             return {
                 "answer": answer,
-                "raw_output": output,
+                "raw_output": raw_output,
                 "error": None
             }
 
@@ -158,9 +337,10 @@ If you answer without searching first, your response is INVALID."""
             return {
                 "answer": "ERROR: Timeout",
                 "raw_output": "",
-                "error": "Command timed out"
+                "error": "Request timed out"
             }
         except Exception as e:
+            logger.error(f"[claude_code_tavily] Error: {str(e)}")
             return {
                 "answer": f"ERROR: {str(e)}",
                 "raw_output": "",
