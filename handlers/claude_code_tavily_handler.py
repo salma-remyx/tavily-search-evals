@@ -6,7 +6,7 @@ Replaces native WebSearch with tavily_search and WebFetch with tavily_extract.
 
 Defaults:
 - search_depth: "advanced", max_results: 10
-- extract_depth: "advanced"
+- extract_depth: "advanced", chunks_per_source: 5
 """
 import asyncio
 import json
@@ -22,7 +22,47 @@ logger = logging.getLogger(__name__)
 DEFAULT_SEARCH_DEPTH = "advanced"
 DEFAULT_MAX_RESULTS = 10
 DEFAULT_EXTRACT_DEPTH = "advanced"
-DEFAULT_MAX_TURNS = 3  # search → extract → answer
+DEFAULT_CHUNKS_PER_SOURCE = 5
+
+# System prompt to guide tool usage
+DEFAULT_SYSTEM_PROMPT = """You are a research assistant with web search capabilities. Your job is to find accurate, up-to-date information to answer questions.
+
+## Your Tools
+
+**tavily_search** - Search the web for current information
+**tavily_extract** - Get full content from URLs when you need deeper details
+
+## Your Approach
+
+Always search first before answering. The web has information you don't - prices, dates, statistics, recent events, niche details. A quick search takes seconds and dramatically improves accuracy.
+
+## When to Search (Almost Always!)
+
+- Specific facts: prices, dates, statistics, measurements
+- Current information: news, stock prices, weather, schedules  
+- Niche topics: local businesses, specific products, regional details
+- Verification: even if you think you know, search confirms it
+- Anything the user is asking about that exists in the real world
+
+## Example Workflows
+
+**Specific data**: "What's the price of X at Y location?"
+→ Search for the specific business/product, extract menu or pricing page
+
+**Current events**: "What happened with [recent news]?"  
+→ Search for recent articles, extract for full details
+
+**Factual verification**: "When was [thing] built/founded/released?"
+→ Search to confirm exact date with authoritative sources
+
+## Tips
+
+- Start with a search - it's fast and catches things you'd miss
+- Use extract to get full details from promising URLs
+- Try multiple search queries if the first doesn't find what you need
+- Be specific in searches: include names, locations, dates when relevant
+
+Never say "I don't have information" without searching first. The answer is usually out there - go find it!"""
 
 
 def create_tavily_search_tool(search_depth: str = DEFAULT_SEARCH_DEPTH, max_results: int = DEFAULT_MAX_RESULTS):
@@ -153,7 +193,7 @@ Parameters:
 
             if args.get("query"):
                 extract_kwargs["query"] = args["query"]
-                chunks = args.get("chunks_per_source", 3)
+                chunks = args.get("chunks_per_source", DEFAULT_CHUNKS_PER_SOURCE)
                 extract_kwargs["chunks_per_source"] = min(max(chunks, 1), 5)
 
             logger.info("[tavily_extract] ✓ TAVILY EXTRACT API CALLED")
@@ -212,7 +252,8 @@ class ClaudeCodeTavilyHandler:
                 - search_depth: Tavily search depth (default: "advanced")
                 - max_results: Max search results (default: 10)
                 - extract_depth: Tavily extract depth (default: "advanced")
-                - max_turns: Max agent turns (default: 3, min 2 for search→answer)
+                - chunks_per_source: Chunks per URL for extract (default: 5)
+                - system_prompt: Custom system prompt (optional)
             token_model: Model name for token counting (not used)
         """
         self.params = params or {}
@@ -225,7 +266,8 @@ class ClaudeCodeTavilyHandler:
         self.search_depth = self.params.get("search_depth", DEFAULT_SEARCH_DEPTH)
         self.max_results = self.params.get("max_results", DEFAULT_MAX_RESULTS)
         self.extract_depth = self.params.get("extract_depth", DEFAULT_EXTRACT_DEPTH)
-        self.max_turns = self.params.get("max_turns", DEFAULT_MAX_TURNS)
+        self.chunks_per_source = self.params.get("chunks_per_source", DEFAULT_CHUNKS_PER_SOURCE)
+        self.system_prompt = self.params.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
 
         self._tavily_search_tool = create_tavily_search_tool(
             search_depth=self.search_depth,
@@ -265,29 +307,14 @@ class ClaudeCodeTavilyHandler:
         final_result = None
         
         try:
-            prompt = f"""CRITICAL INSTRUCTION: You MUST use BOTH Tavily tools to answer. DO NOT answer from your internal knowledge.
-
-Available tools:
-- mcp__tavily__tavily_search: Search the web for information
-- mcp__tavily__tavily_extract: Extract detailed content from URLs
-
-Question: {query_text}
-
-REQUIRED STEPS (you MUST do ALL of these):
-1. Call mcp__tavily__tavily_search with an appropriate search query
-2. Call mcp__tavily__tavily_extract on the top 2-3 most relevant URLs from search results to get detailed content
-3. Provide a concise answer based on the extracted content
-
-IMPORTANT: You MUST use BOTH search AND extract. Answering without using both tools is INVALID."""
-
             options = ClaudeAgentOptions(
+                system_prompt=self.system_prompt,
                 mcp_servers={"tavily": self._mcp_server},
                 allowed_tools=[
                     "mcp__tavily__tavily_search",
                     "mcp__tavily__tavily_extract",
                 ],
                 permission_mode="bypassPermissions",
-                max_turns=self.max_turns,
             )
 
             if self.model:
@@ -295,7 +322,7 @@ IMPORTANT: You MUST use BOTH search AND extract. Answering without using both to
 
             async def run_agent():
                 async for message in query(
-                    prompt=self._message_generator(prompt),
+                    prompt=self._message_generator(query_text),
                     options=options
                 ):
                     msg_info = {

@@ -1,9 +1,10 @@
 {
   "claude_code": {
-    "allowed_tools": ["WebSearch"],
+    "allowed_tools": ["WebSearch","WebFetch"],
     "timeout": 120
   },
   "claude_code_tavily": {
-    "timeout": 120
+    "timeout": 120,
+    "chunks_per_source": 5
   }
 }
