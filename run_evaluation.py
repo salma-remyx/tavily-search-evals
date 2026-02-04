@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
 
 
-from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler, ClaudeCodeHandler, ClaudeCodeTavilySkillHandler
+from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler, ClaudeCodeHandler, ClaudeCodeTavilyHandler
 from evaluators import CorrectnessEvaluator
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
 
@@ -30,22 +30,38 @@ TAVILY_DEFAULT_CONFIG = {
     "max_results": 10,
 }
 
-def get_dataset_path(evaluation_type: EvaluationType) -> str:
+def get_dataset_path(evaluation_type: EvaluationType, custom_dataset: str = None) -> str:
     """Get the dataset path based on evaluation type."""
+    if custom_dataset:
+        return custom_dataset
     if evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         return "datasets/document_relevance_dynamic_test_set.json"
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return "datasets/simple_qa_test_set.csv"
+    elif evaluation_type == EvaluationType.SEALQA:
+        return "datasets/seal_qa_hard.csv"
 
 
-def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: Optional[int] = None, random_sample: Optional[int] = None):
+def parse_column_map(column_map_str: str) -> Optional[Dict[str, str]]:
+    """Parse column map string like 'question:problem,ans:answer' into a dict."""
+    if not column_map_str:
+        return None
+    mapping = {}
+    for pair in column_map_str.split(','):
+        if ':' in pair:
+            src, dst = pair.strip().split(':', 1)
+            mapping[src.strip()] = dst.strip()
+    return mapping if mapping else None
+
+
+def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: Optional[int] = None, random_sample: Optional[int] = None, custom_dataset: str = None, column_map: Dict[str, str] = None):
     """Load data based on evaluation type."""
-    dataset_path = get_dataset_path(evaluation_type)
-    
+    dataset_path = get_dataset_path(evaluation_type, custom_dataset)
+
     if evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         return load_document_relevance_eval_data(dataset_path, start_index, end_index, random_sample)
-    elif evaluation_type == EvaluationType.SIMPLEQA:
-        return load_csv_data(dataset_path, start_index, end_index, random_sample)
+    elif evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
+        return load_csv_data(dataset_path, start_index, end_index, random_sample, column_map=column_map)
 
 
 async def get_search_handlers(search_provider_params: Dict[str, Dict[str, Any]], token_model: str = "gpt-4.1"):
@@ -59,7 +75,7 @@ async def get_search_handlers(search_provider_params: Dict[str, Dict[str, Any]],
         "serper": SerperHandler,
         "brave": BraveHandler,
         "claude_code": ClaudeCodeHandler,
-        "claude_code_tavily_skill": ClaudeCodeTavilySkillHandler,
+        "claude_code_tavily": ClaudeCodeTavilyHandler,
     }
     
     return [
@@ -238,6 +254,8 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    custom_dataset: str = None,
+    column_map: Dict[str, str] = None,
 ):
     """Run the benchmark evaluation using specified evaluation type.
     
@@ -258,7 +276,7 @@ async def run_evaluation(
                 raise ValueError("'contents' field with 'highlights' is required for Exa. Please add it to the configuration.")
         
         # Load and prepare data based on evaluation type
-        examples = load_data(evaluation_type, start_index, end_index, random_sample)
+        examples = load_data(evaluation_type, start_index, end_index, random_sample, custom_dataset, column_map)
         examples = prepare_examples(examples, list(search_provider_params.keys()), rerun, output_dir, random_sample, evaluation_type)
     
         # Initialize search handlers
@@ -278,14 +296,14 @@ async def run_evaluation(
             # Evaluate providers in parallel
             tasks = []
             for handler, provider_name in zip(search_handlers, provider_names):
-                if evaluation_type == EvaluationType.SIMPLEQA:
+                if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
                     task = evaluate_provider_simple_qa(
                         provider_name,
                         handler,
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
@@ -304,7 +322,7 @@ async def run_evaluation(
             # Evaluate providers sequentially
             for handler, provider_name in zip(search_handlers, provider_names):
                 logger.info(f"Evaluating provider: {provider_name}")
-                if evaluation_type == EvaluationType.SIMPLEQA:
+                if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
                     result = await evaluate_provider_simple_qa(
                         provider_name,
                         handler,
@@ -359,7 +377,7 @@ async def run_evaluation(
         print(f"Dataset: {get_dataset_path(evaluation_type)}")
         print("-----------------------------")
         for provider_name, result in provider_results.items():
-            if evaluation_type == EvaluationType.SIMPLEQA:
+            if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
                 print(f"{provider_name}: {result['accuracy']:.2%} ({result['correct_count']}/{result['total_count']})")
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 print(f"{provider_name}: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
@@ -372,7 +390,7 @@ async def run_evaluation(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run benchmark evaluation using specified evaluation type")
-    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value], help="Type of evaluation to run (simpleqa or document_relevance)")
+    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value, EvaluationType.SEALQA.value], help="Type of evaluation to run (simpleqa, sealqa, or document_relevance)")
     parser.add_argument("--config", default="configs/config.json", type=str, help="Path to JSON config file with provider parameters")
     parser.add_argument("--start_index", type=int, default=0, help="Starting index for examples (inclusive)")
     parser.add_argument("--end_index", type=int, default=None, help="Ending index for examples (exclusive)")
@@ -383,6 +401,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
+    parser.add_argument("--dataset", type=str, default=None, help="Custom dataset path (overrides default)")
+    parser.add_argument("--column-map", type=str, default=None, help="Column mapping, e.g. 'question:problem'")
     
     args = parser.parse_args()
     
@@ -401,6 +421,8 @@ if __name__ == "__main__":
     output_dir = get_output_dir(evaluation_type=evaluation_type, output_dir=args.output_dir, rerun=args.rerun)
 
     
+    column_map = parse_column_map(args.column_map)
+
     asyncio.run(run_evaluation(
         evaluation_type=evaluation_type,
         search_provider_params=search_provider_params,
@@ -414,4 +436,6 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        custom_dataset=args.dataset,
+        column_map=column_map,
     ))

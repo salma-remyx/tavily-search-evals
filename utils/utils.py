@@ -16,6 +16,7 @@ import shutil
 class EvaluationType(Enum):
     DOCUMENT_RELEVANCE = "document_relevance"
     SIMPLEQA = "simpleqa"
+    SEALQA = "sealqa"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -38,7 +39,7 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
     summary_file = f"{output_dir}/summary.csv"
 
     with open(summary_file, 'w', newline='') as csvfile:
-        if evaluation_type == EvaluationType.SIMPLEQA:
+        if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
             fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
@@ -52,7 +53,7 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
             provider_full_results = pd.read_csv(output_file)
             examples_count = len(provider_full_results)
             
-            if evaluation_type == EvaluationType.SIMPLEQA:
+            if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
                 correct_count = len(provider_full_results[provider_full_results['is_correct'] == True])
                 accuracy = correct_count / examples_count if examples_count > 0 else 0.0
                 accuracy = round(accuracy, 3)
@@ -85,6 +86,7 @@ def load_csv_data(
     start_index: int = 0,
     end_index: Optional[int] = None,
     random_sample: Optional[int] = None,
+    column_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict]:
     """Load data from CSV file with question and answer columns.
 
@@ -103,11 +105,16 @@ def load_csv_data(
         logger.info(f"Loading data from csv file: {csv_path}")
         df = pd.read_csv(csv_path)
 
+        # Apply column mapping if provided
+        if column_map:
+            df = df.rename(columns=column_map)
+            logger.info(f"Applied column mapping: {column_map}")
+
         # Check if the required columns exist
         required_cols = ['problem', 'answer']
         for col in required_cols:
             if col not in df.columns:
-                raise ValueError(f"CSV file must contain '{col}' column")
+                raise ValueError(f"CSV file must contain '{col}' column (use --column-map to rename columns)")
 
         total_rows = len(df)
 
@@ -201,7 +208,7 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
     """Appending a single result to the results CSV file."""
     os.makedirs(output_dir, exist_ok=True)
     
-    if evaluation_type == EvaluationType.SIMPLEQA:
+    if evaluation_type in (EvaluationType.SIMPLEQA, EvaluationType.SEALQA):
         fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
