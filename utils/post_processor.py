@@ -1,5 +1,10 @@
+import asyncio
 import logging
+from typing import Dict, Sequence, Union
+
 from langchain_openai import ChatOpenAI
+
+from utils.retrieval_quality import JudgeFn, score_documents
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +89,48 @@ class PostProcessor(object):
         except Exception as e:
             logger.error(f"Error extracting answer: {str(e)}")
             return "Sorry, I couldn't process the answer properly."
+
+    async def score_retrieval_quality(
+            self,
+            query: str,
+            reference_answer: str,
+            documents: Union[str, Sequence[str]],
+            judge_fn: JudgeFn,
+            ks: Sequence[int] = (1, 3, 5),
+    ) -> Dict[str, object]:
+        """Score retrieval quality with eRAG (reference-free per-document).
+
+        Uses this PostProcessor's own answer extractor as the downstream
+        generator so each retrieved document is graded by the answer it
+        induces on its own, then aggregates those per-document outcomes into
+        retrieval metrics. See ``utils.retrieval_quality`` for the method.
+
+        Args:
+            query: The user query.
+            reference_answer: Gold answer passed to ``judge_fn``.
+            documents: Per-document strings, or the formatted prompt string a
+                provider handler returns (split into documents automatically).
+            judge_fn: Async ``(query, answer, reference) -> 0/1`` scorer.
+            ks: Precision cutoffs to report.
+
+        Returns:
+            Aggregated eRAG metrics for this query.
+        """
+        async def generate_fn(q: str, document: str) -> str:
+            # extract_answer is a blocking LLM call; offload it so documents
+            # are scored concurrently rather than serially per query.
+            return await asyncio.to_thread(
+                self.extract_answer,
+                query=q,
+                is_llm_response=False,
+                search_result=document,
+            )
+
+        return await score_documents(
+            query=query,
+            reference_answer=reference_answer,
+            documents=documents,
+            generate_fn=generate_fn,
+            judge_fn=judge_fn,
+            ks=ks,
+        )

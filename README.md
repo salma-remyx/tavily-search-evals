@@ -202,3 +202,28 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Retrieval Quality (eRAG)** — adapted from *Evaluating Retrieval Quality in Retrieval-Augmented Generation*
+
+The SimpleQA benchmark now reports a **reference-free retrieval-quality**
+signal alongside answer accuracy, adapted from
+[Evaluating Retrieval Quality in Retrieval-Augmented Generation](https://arxiv.org/abs/2404.13781)
+(Salemi & Zamani, 2024). Because query–document relevance labels correlate
+poorly with a provider's actual downstream performance, eRAG instead grades
+**each retrieved document individually**: it runs the existing answer
+extractor on that one document and checks whether the SimpleQA classifier
+marks the resulting answer correct. Those per-document outcomes become
+relevance labels that are aggregated into standard ranked-retrieval metrics.
+
+- Runs automatically on the SimpleQA path for providers that return a
+  document list (LLM-answer providers such as GPTR/Perplexity are skipped,
+  since they expose no per-document retrieval list).
+- Each result records an `erag` block with `precision@k`, `mrr`, `map`,
+  `erag_precision`, `hit`, and the raw per-document `labels`; each provider
+  summary reports the mean across queries.
+- Implemented in `utils/retrieval_quality.py` and invoked through
+  `PostProcessor.score_retrieval_quality`, reusing the existing search
+  handlers, answer extractor, and correctness classifier with no new
+  dependency.
