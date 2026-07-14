@@ -202,3 +202,11 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Capability Frontier Analysis**
+
+In addition to each provider's standalone accuracy, the SimpleQA summary reports a **Capability Frontier** row that quantifies the suite's *collective* ceiling: the share of questions that **any** provider answered correctly under an oracle that picks the best answer per question. Comparing that oracle accuracy to the best single provider's accuracy surfaces the untapped potential of routing across providers rather than committing to one.
+
+This is computed automatically in `summary.csv` as a `capability_frontier (oracle)` row (alongside the per-provider rows) by `utils/capability_frontier.py`, and the run log prints the oracle vs. best-single-provider gap and the relative error-rate reduction. Adapted from *The Capability Frontier: Benchmarks Miss 82% of Model Performance*.

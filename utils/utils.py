@@ -11,6 +11,8 @@ import random
 import uuid
 import shutil
 
+from .capability_frontier import compute_capability_frontier
+
 
 
 class EvaluationType(Enum):
@@ -46,10 +48,12 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
         writer.writeheader()
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        per_provider_frames = {}
 
         for provider_name, result in provider_results.items():
             output_file = f"{output_dir}/{provider_name}_{evaluation_type.value}_results.csv"
             provider_full_results = pd.read_csv(output_file)
+            per_provider_frames[provider_name] = provider_full_results
             examples_count = len(provider_full_results)
             
             if evaluation_type == EvaluationType.SIMPLEQA:
@@ -76,6 +80,34 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                     'app_name': provider_metrics.get('app_name', ''),
                     'timestamp': timestamp
                 })
+
+        # Capability Frontier: the oracle ceiling across all providers, i.e. the
+        # share of queries that *some* provider answered correctly. Reported
+        # alongside the per-provider rows to surface the suite's untapped
+        # collective potential vs. the best single provider. Adapted from
+        # arXiv:2606.26836 (see utils/capability_frontier.py).
+        if evaluation_type == EvaluationType.SIMPLEQA and len(per_provider_frames) >= 1:
+            per_query_results = {
+                provider: frame.to_dict("records")
+                for provider, frame in per_provider_frames.items()
+            }
+            frontier = compute_capability_frontier(per_query_results)
+            writer.writerow({
+                'provider': 'capability_frontier (oracle)',
+                'accuracy': frontier['oracle_accuracy'],
+                'correct_count': frontier['oracle_correct_count'],
+                'total_count': frontier['total_queries'],
+                'timestamp': timestamp,
+            })
+            logger.info(
+                "Capability Frontier: oracle %.1f%% vs best single provider '%s' "
+                "%.1f%% (gap %.1f%%, error-rate reduction %.1f%%)",
+                frontier['oracle_accuracy'] * 100,
+                frontier['best_single_provider'],
+                frontier['best_single_provider_accuracy'] * 100,
+                frontier['frontier_gap'] * 100,
+                frontier['error_rate_reduction'] * 100,
+            )
 
     logger.info(f"Saved summary results to {summary_file}")
 
