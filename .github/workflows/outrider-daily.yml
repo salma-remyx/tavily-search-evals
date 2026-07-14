@@ -1,0 +1,42 @@
+name: Outrider drafter (branch-mode, GLM-5.2)
+
+# Drafter: high-frequency cheap exploration via z.ai / GLM-5.2. publish=branch
+# (no PR), maintain-state accumulates .remyx/repo_intel.yaml, staged-synthesis
+# off. Companion to outrider-weekly-refine.yml (Opus 4.8, manual trigger).
+# z.ai routing: ANTHROPIC_AUTH_TOKEN from ZAI_API_KEY + model-base-url.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes
+  workflow_dispatch: {}
+
+concurrency:
+  group: outrider-drafter
+  cancel-in-progress: false
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure provider auth (z.ai / GLM-5.2)
+        shell: bash
+        env:
+          ZAI_API_KEY_SECRET: ${{ secrets.ZAI_API_KEY }}
+        run: |
+          echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY_SECRET" >> "$GITHUB_ENV"
+          echo "ANTHROPIC_MODEL=glm-5.2" >> "$GITHUB_ENV"
+      - uses: remyxai/outrider@v1
+        with:
+          interest-id: '7a721f95-8772-4e55-bc30-3d29750cd28d'
+          publish: branch
+          maintain-state: 'true'
+          staged-synthesis: 'false'
+          model-base-url: 'https://api.z.ai/api/anthropic'
+          guardrails-allowlist: '**/*.lock'
