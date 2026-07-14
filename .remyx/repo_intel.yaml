@@ -12,7 +12,13 @@ observed_landing_zones:
       \ answer=answer, search_result=search_ans)."
     branch: beyond-document-grounding-span-level-hallucination-detection
     timestamp: '2026-07-14T21:50:02Z'
-  last_observed: '2026-07-14T21:50:02Z'
+  - arxiv: 2606.26836v1
+    mode: Mode 3 (inspired experiment)
+    call_site_specifics: save_summary in utils/utils.py (gated to EvaluationType.SIMPLEQA),
+      reached from run_evaluation.py:353 in the CLI evaluation pipeline
+    branch: the-capability-frontier-benchmarks-miss-82-of-model-performa
+    timestamp: '2026-07-14T22:41:02Z'
+  last_observed: '2026-07-14T22:41:02Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-14T21:50:02Z'
+last_updated: '2026-07-14T22:41:02Z'
