@@ -18,7 +18,12 @@ observed_landing_zones:
       reached from run_evaluation.py:353 in the CLI evaluation pipeline
     branch: the-capability-frontier-benchmarks-miss-82-of-model-performa
     timestamp: '2026-07-14T22:41:02Z'
-  last_observed: '2026-07-14T22:41:02Z'
+  - arxiv: 2607.07302v1
+    mode: ''
+    call_site_specifics: ''
+    branch: evaluating-rag-metrics-in-applied-contexts-an-experiment-its
+    timestamp: '2026-07-14T23:00:39Z'
+  last_observed: '2026-07-14T23:00:39Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-14T22:41:02Z'
+last_updated: '2026-07-14T23:00:39Z'
