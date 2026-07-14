@@ -202,3 +202,22 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **RAG Metric Agreement** — adapted from "Evaluating RAG Metrics in Applied Contexts" (arXiv:2607.07302)
+
+As the number of providers and evaluation types grows, it helps to check whether the metrics you score results with actually *track human judgment*. This adds a parameter-free, RAGChecker-style scorer (`utils/rag_metric_agreement.py`) over the existing SimpleQA result contract (the `reference_answer / predicted_answer` rows written by `save_result`) and reports each metric's agreement with human labels.
+
+- Scores each result row with **claim recall** (how much of the reference answer the response recovers) and **answer faithfulness** (how much of the response is supported by retrieved context, when context is provided).
+- Reports **Pearson**, **Spearman**, and threshold **agreement** of each metric against human labels — the correlation analysis the paper runs against two human evaluators.
+- The external metric libraries and the LLM-based claim extractor from the paper are replaced by a self-contained clause/token-coverage implementation, so it runs with no extra dependencies beyond the existing `requirements.txt`.
+
+### **Running**
+```sh
+python run_metric_agreement.py \
+    --results_csv results/simpleqa/<timestamp>/tavily_simpleqa_results.csv \
+    --human_labels_csv human_labels.csv \
+    [--context_csv retrieved_context.csv]
+```
+`human_labels.csv` columns: `index,human_score` (e.g. `1.0` correct / `0.0` incorrect). `retrieved_context.csv` columns: `index,context` (optional; enables the faithfulness metric).
