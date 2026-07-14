@@ -44,6 +44,7 @@ jobs:
       - uses: remyxai/outrider@v1
         with:
           interest-id: 7a721f95-8772-4e55-bc30-3d29750cd28d
+          guardrails-allowlist: '**/*.lock'
           # remyx[bot] token (empty → action falls back to GITHUB_TOKEN).
           github-token: ${{ steps.remyx-bot.outputs.token }}
           # Disable the per-repo rate-limit window so manual and scheduled
