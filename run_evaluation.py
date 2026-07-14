@@ -100,9 +100,14 @@ async def evaluate_provider_simple_qa(
                 search_ans, token_count, token_avg = await search_handler.post_process(search_result)
             
             answer = post_processor.extract_answer(
-                query=query, 
-                is_llm_response=is_llm_response, 
+                query=query,
+                is_llm_response=is_llm_response,
                 search_result=search_ans
+            )
+            # Span-level grounding / hallucination check: which parts of the
+            # extracted answer are unsupported by the retrieved search_result.
+            grounding_result = post_processor.check_answer_grounding(
+                query=query, answer=answer, search_result=search_ans
             )
             # Evaluate the answer
             evaluation_result = await evaluator.evaluate(
@@ -123,6 +128,8 @@ async def evaluate_provider_simple_qa(
                 "predicted_answer": answer,
                 "is_correct": is_correct,
                 "grade": grade,
+                "hallucination_score": grounding_result["hallucination_score"],
+                "answer_grounded": grounding_result["grounded"],
                 "token_count": token_count if not is_llm_response else 0,
                 "token_avg": token_avg if not is_llm_response else 0
             }

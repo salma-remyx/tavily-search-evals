@@ -202,3 +202,13 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Span-Level Grounding Check**
+
+Beyond correctness (does the predicted answer match the gold answer?) and document relevance (are the retrieved docs on-topic?), the SimpleQA loop now also reports an **answer-grounding** dimension. Given the retrieved evidence, the question, and the extracted answer, it flags the spans of the answer that are *not supported* by the retrieved context and reduces them to a single `hallucination_score` in `[0, 1]` (0 = fully grounded, 1 = fully ungrounded). This surfaces fabricated content even when an answer is otherwise plausible, and is recorded per-row in the SimpleQA results CSV (`hallucination_score`).
+
+- Exposed via `PostProcessor.check_answer_grounding(query, answer, search_result)`.
+- Backed by `utils/span_grounding_check.py` (`SpanGroundingChecker`).
+- Adapted from *Beyond Document Grounding: Span-Level Hallucination Detection over Code, Tool Output, and Documents* (arXiv:2607.00895): the span-level `(context, question, answer)` grounding mechanism is kept at full fidelity, while the paper's fine-tuned Qwen3.5-2B detector is substituted with a zero-shot LLM judge over the same `ChatOpenAI(...).with_structured_output(...)` path the correctness grader already uses. The character offsets and score are computed deterministically from the judge's verbatim span labels.

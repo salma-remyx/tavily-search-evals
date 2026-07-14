@@ -1,6 +1,8 @@
 import logging
 from langchain_openai import ChatOpenAI
 
+from .span_grounding_check import SpanGroundingChecker
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,3 +86,27 @@ class PostProcessor(object):
         except Exception as e:
             logger.error(f"Error extracting answer: {str(e)}")
             return "Sorry, I couldn't process the answer properly."
+
+    def check_answer_grounding(self, query: str, answer: str, search_result: str) -> dict:
+        """Score how much of ``answer`` is unsupported by the retrieved evidence.
+
+        Thin wrapper over :class:`~utils.span_grounding_check.SpanGroundingChecker`
+        so the SimpleQA loop can request a span-level grounding / hallucination
+        score from the same place it already extracts answers. Mirrors the
+        ``(context, question, answer)`` contract of the grounding checker: the
+        post-processed ``search_result`` is the context, ``query`` is the
+        question, and ``answer`` is the extracted prediction to audit.
+
+        Args:
+            query: The original user query.
+            answer: The extracted predicted answer to audit.
+            search_result: The retrieved evidence the answer was drawn from.
+
+        Returns:
+            dict with ``hallucination_score`` (0..1), ``ungrounded_spans``, and
+            ``grounded``. See ``SpanGroundingChecker.check`` for details.
+        """
+        logger.info(f"Checking answer grounding for query: {query}")
+        return SpanGroundingChecker().check(
+            context=search_result, question=query, answer=answer
+        )
