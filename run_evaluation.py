@@ -13,6 +13,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils.retrieval_quality import mean_metrics
 
 load_dotenv()
 
@@ -127,6 +128,24 @@ async def evaluate_provider_simple_qa(
                 "token_avg": token_avg if not is_llm_response else 0
             }
 
+            # eRAG reference-free retrieval-quality: score each retrieved
+            # document by the downstream answer it induces on its own. Only
+            # meaningful when the provider returns a document list (LLM-answer
+            # providers have no per-document retrieval list to score).
+            if not is_llm_response:
+                async def judge_fn(q, predicted, reference):
+                    verdict = await evaluator.evaluate(
+                        {"question": q}, {"answer": predicted}, {"answer": reference}
+                    )
+                    return verdict["score"]
+
+                result["erag"] = await post_processor.score_retrieval_quality(
+                    query=query,
+                    reference_answer=reference_answer,
+                    documents=search_ans,
+                    judge_fn=judge_fn,
+                )
+
             results.append(result)
             logger.info(f"[{provider_name}] Q{index}: Grade - {grade}, Query: '{query}'")
             save_result(result, provider_name, output_dir, evaluation_type)
@@ -161,7 +180,8 @@ async def evaluate_provider_simple_qa(
         "results": results,
         "accuracy": accuracy,
         "correct_count": correct_count,
-        "total_count": len(examples)
+        "total_count": len(examples),
+        "erag": mean_metrics([r.get("erag") for r in results]),
     }
 
 async def evaluate_provider_document_relevance(
