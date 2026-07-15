@@ -79,6 +79,16 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
 
     logger.info(f"Saved summary results to {summary_file}")
 
+    # CollabEval: estimate provider rankings from a sparse subset of the
+    # provider x question correctness matrix (low-rank completion + PPI).
+    # Runs only for SimpleQA and never blocks the main summary pipeline.
+    if evaluation_type == EvaluationType.SIMPLEQA:
+        try:
+            from .sparse_eval_estimator import run_collab_eval
+            run_collab_eval(output_dir, list(provider_results.keys()))
+        except Exception as e:
+            logger.warning(f"CollabEval sparse estimation skipped: {str(e)}")
+
 
 def load_csv_data(
     csv_path: str,

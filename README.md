@@ -202,3 +202,11 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Sparse Evaluation Estimation** (adapted from [CollabEval](https://arxiv.org/abs/2607.05046v1))
+
+After each SimpleQA run, the framework also writes `collabeval_summary.csv` next to `summary.csv`. It treats the provider × question correctness matrix as a matrix-completion problem: only a fraction (`density`, default `0.2`) of each provider's questions is treated as annotated, the full matrix is reconstructed at low rank, and a prediction-powered control-variate estimator produces an **unbiased** mean-accuracy estimate per provider with a confidence interval that is tighter than the naive sample-mean baseline at the same annotation budget.
+
+Each row reports `estimated_accuracy` (the sparse CollabEval estimate), its `ci_lower`/`ci_upper`/`ci_width`, the `naive_accuracy`/`naive_ci_width` baseline, the `full_accuracy` (dense ground truth), and `n_observed`. This quantifies how much annotation cost could be saved when re-running broad provider comparisons — directly supporting the project's evaluation-latency theme. The estimator lives in `utils/sparse_eval_estimator.py` and is wired into `save_summary` for SimpleQA evaluations.
