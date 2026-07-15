@@ -149,6 +149,15 @@ def test_postprocessor_grounding_wiring(monkeypatch):
 
     monkeypatch.setattr(post_processor_module, "SpanGroundingChecker", _FakeChecker)
 
+    class _FakeTaxonomy:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def classify(self, context, question, answer, ungrounded_spans):
+            return {"contradiction_score": 0.0, "contradicted_spans": []}
+
+    monkeypatch.setattr(post_processor_module, "SpanTaxonomyClassifier", _FakeTaxonomy)
+
     out = post_processor_module.PostProcessor().check_answer_grounding(
         query="Where is the Eiffel Tower?",
         answer="It is in Berlin.",

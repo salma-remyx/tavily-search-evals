@@ -212,3 +212,10 @@ Beyond correctness (does the predicted answer match the gold answer?) and docume
 - Exposed via `PostProcessor.check_answer_grounding(query, answer, search_result)`.
 - Backed by `utils/span_grounding_check.py` (`SpanGroundingChecker`).
 - Adapted from *Beyond Document Grounding: Span-Level Hallucination Detection over Code, Tool Output, and Documents* (arXiv:2607.00895): the span-level `(context, question, answer)` grounding mechanism is kept at full fidelity, while the paper's fine-tuned Qwen3.5-2B detector is substituted with a zero-shot LLM judge over the same `ChatOpenAI(...).with_structured_output(...)` path the correctness grader already uses. The character offsets and score are computed deterministically from the judge's verbatim span labels.
+
+### Span-Severity Taxonomy
+
+The paper's detector does more than flag *whether* a span is unsupported — it assigns each span a **category**. A span can either **contradict** the evidence (it asserts something the context denies — actively wrong) or merely be **unverifiable** (unsupported, but nothing contradicts it). Contradicted spans are a strictly more severe failure, so they are tracked and scored separately. The grounding check now folds this taxonomy into its result: alongside `hallucination_score` it reports a `contradiction_score` in `[0, 1]` (fraction of the answer's characters that are actively contradicted), plus `contradicted_spans` / `unverifiable_spans`. `contradiction_score` is recorded per-row in the SimpleQA results CSV.
+
+- Backed by `utils/hallucination_taxonomy.py` (`SpanTaxonomyClassifier`, `SpanLabel`), layered on top of `SpanGroundingChecker`: it categorises only the spans the grounding step already flagged, so a fully grounded answer costs no extra LLM call.
+- Adapted (Mode 2) from the same paper (arXiv:2607.00895): the paper's fine-tuned token-classifier that emits per-span categories is substituted with a zero-shot LLM judge over the repo's existing `ChatOpenAI(...).with_structured_output(...)` path; the per-class scores are computed deterministically from the span labels.

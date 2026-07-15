@@ -129,6 +129,7 @@ async def evaluate_provider_simple_qa(
                 "is_correct": is_correct,
                 "grade": grade,
                 "hallucination_score": grounding_result["hallucination_score"],
+                "contradiction_score": grounding_result.get("contradiction_score", 0.0),
                 "answer_grounded": grounding_result["grounded"],
                 "token_count": token_count if not is_llm_response else 0,
                 "token_avg": token_avg if not is_llm_response else 0

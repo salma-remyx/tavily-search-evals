@@ -2,6 +2,7 @@ import logging
 from langchain_openai import ChatOpenAI
 
 from .span_grounding_check import SpanGroundingChecker
+from .hallucination_taxonomy import SpanTaxonomyClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +105,22 @@ class PostProcessor(object):
 
         Returns:
             dict with ``hallucination_score`` (0..1), ``ungrounded_spans``, and
-            ``grounded``. See ``SpanGroundingChecker.check`` for details.
+            ``grounded`` (see ``SpanGroundingChecker.check``), enriched with the
+            paper's span-severity taxonomy: ``contradiction_score`` (0..1),
+            ``unverifiable_score``, ``contradicted_spans``, and
+            ``unverifiable_spans`` (see ``SpanTaxonomyClassifier.classify``).
         """
         logger.info(f"Checking answer grounding for query: {query}")
-        return SpanGroundingChecker().check(
+        grounding = SpanGroundingChecker().check(
             context=search_result, question=query, answer=answer
         )
+        # Split the detected ungrounded spans into contradicted (actively wrong)
+        # vs merely unverifiable, per the paper's span-severity taxonomy.
+        taxonomy = SpanTaxonomyClassifier().classify(
+            context=search_result,
+            question=query,
+            answer=answer,
+            ungrounded_spans=grounding["ungrounded_spans"],
+        )
+        grounding.update(taxonomy)
+        return grounding
