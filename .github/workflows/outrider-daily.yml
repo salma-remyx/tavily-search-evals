@@ -6,8 +6,8 @@ name: Outrider drafter (branch-mode, GLM-5.2)
 # z.ai routing: ANTHROPIC_AUTH_TOKEN from ZAI_API_KEY + model-base-url.
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'   # every 15 minutes
+  # schedule:   # in-fork cron disabled — OS cron drives via workflow_dispatch (avoids double-fire; fork crons are unreliable anyway)
+  #   - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
 concurrency:
