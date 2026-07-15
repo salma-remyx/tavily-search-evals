@@ -23,7 +23,12 @@ observed_landing_zones:
     call_site_specifics: ''
     branch: evaluating-rag-metrics-in-applied-contexts-an-experiment-its
     timestamp: '2026-07-14T23:00:39Z'
-  last_observed: '2026-07-14T23:00:39Z'
+  - arxiv: 2607.08662v1
+    mode: Mode 3 (inspired experiment)
+    call_site_specifics: (none)
+    branch: webswarm-recursive-multi-agent-orchestration-for-deep-and-wi
+    timestamp: '2026-07-15T00:07:51Z'
+  last_observed: '2026-07-15T00:07:51Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-14T23:00:39Z'
+last_updated: '2026-07-15T00:07:51Z'
