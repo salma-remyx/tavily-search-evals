@@ -35,7 +35,13 @@ observed_landing_zones:
       results written through utils/utils.py save_result/
     branch: ask-don-t-judge-binary-questions-for-interpretable-llm-evalu
     timestamp: '2026-07-15T00:35:09Z'
-  last_observed: '2026-07-15T00:35:09Z'
+  - arxiv: 2607.05046v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: save_summary() in utils/utils.py:85-90, reached from run_evaluation.py:353
+      in the main evaluation pipeline (SimpleQA branch only)
+    branch: collabeval-statistically-efficient-collaborative-model-evalu
+    timestamp: '2026-07-15T01:01:26Z'
+  last_observed: '2026-07-15T01:01:26Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-15T00:35:09Z'
+last_updated: '2026-07-15T01:01:26Z'
