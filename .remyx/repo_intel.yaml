@@ -28,7 +28,14 @@ observed_landing_zones:
     call_site_specifics: (none)
     branch: webswarm-recursive-multi-agent-orchestration-for-deep-and-wi
     timestamp: '2026-07-15T00:07:51Z'
-  last_observed: '2026-07-15T00:07:51Z'
+  - arxiv: 2606.27226v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: run_evaluation.py:evaluate_provider_simple_qa (the pre-existing
+      SimpleQA per-provider loop), reached via run_evaluation()/asyncio.run from __main__;
+      results written through utils/utils.py save_result/
+    branch: ask-don-t-judge-binary-questions-for-interpretable-llm-evalu
+    timestamp: '2026-07-15T00:35:09Z'
+  last_observed: '2026-07-15T00:35:09Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-15T00:07:51Z'
+last_updated: '2026-07-15T00:35:09Z'
