@@ -39,7 +39,7 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
 
     with open(summary_file, 'w', newline='') as csvfile:
         if evaluation_type == EvaluationType.SIMPLEQA:
-            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
+            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'bineval_score', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -57,11 +57,23 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                 accuracy = correct_count / examples_count if examples_count > 0 else 0.0
                 accuracy = round(accuracy, 3)
 
+                # Mean interpretable binary-question (BINEVAL) score across the
+                # provider's answers. Absent for result sets produced before the
+                # binary-question judge existed, so guard the column.
+                bineval_mean = ""
+                if "bineval_score" in provider_full_results.columns:
+                    bineval_scores = pd.to_numeric(
+                        provider_full_results["bineval_score"], errors="coerce"
+                    )
+                    if bineval_scores.notna().any():
+                        bineval_mean = round(float(bineval_scores.mean()), 3)
+
                 writer.writerow({
                 'provider': provider_name,
                 'accuracy': accuracy,
                 'correct_count': correct_count,
                 'total_count': examples_count,
+                'bineval_score': bineval_mean,
                 'timestamp': timestamp
             })
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
@@ -202,7 +214,11 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
     os.makedirs(output_dir, exist_ok=True)
     
     if evaluation_type == EvaluationType.SIMPLEQA:
-        fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
+        fieldnames = [
+            'index', 'question', 'reference_answer', 'predicted_answer',
+            'is_correct', 'grade', 'token_count', 'token_avg',
+            'bineval_score', 'bineval_dimensions', 'bineval_verdicts',
+        ]
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
 
@@ -215,8 +231,9 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
         if not file_exists:
             writer.writeheader()
 
-        # Only write fields that exist in the result
-        filtered_result = {k: v for k, v in result.items() if k in fieldnames}
+        # Only write fields that exist in the result; None values become blank
+        # cells so optional columns (e.g. the binary-question scores) stay clean.
+        filtered_result = {k: ("" if v is None else v) for k, v in result.items() if k in fieldnames}
         writer.writerow(filtered_result)
 
 

@@ -8,6 +8,7 @@ import time
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
+from utils.binary_question_evaluator import BinaryQuestionEvaluator, BinaryQuestionConfig
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
@@ -77,6 +78,10 @@ async def evaluate_provider_simple_qa(
 ):
     """Evaluate a single search provider on the dataset."""
     evaluator = CorrectnessEvaluator(CorrectnessConfig(model_name=evaluator_model))
+    # Interpretable binary-question judge (BINEVAL): scores the answer along
+    # independent dimensions so a result shows *which* facet failed, not just
+    # a single opaque grade. Failures are non-fatal (best-effort enrichment).
+    bineval = BinaryQuestionEvaluator(BinaryQuestionConfig(model_name=evaluator_model))
     
     results = []
     correct_count = 0
@@ -116,6 +121,27 @@ async def evaluate_provider_simple_qa(
                 correct_count += 1
 
             grade = evaluation_result['value']
+
+            # Binary-question (BINEVAL) breakdown: independent yes/no verdicts
+            # per dimension. On any failure we leave the fields empty so the
+            # correctness result still records.
+            bineval_score = None
+            bineval_dimensions = "{}"
+            bineval_verdicts = "{}"
+            try:
+                bineval_result = await bineval.evaluate(
+                    question=query,
+                    predicted_answer=answer,
+                    reference_answer=reference_answer,
+                )
+                bineval_score = bineval_result["score"]
+                bineval_dimensions = json.dumps(bineval_result["dimensions"])
+                bineval_verdicts = json.dumps(bineval_result["verdicts"])
+            except Exception as bineval_error:
+                logger.warning(
+                    f"[{provider_name}] Binary-question eval failed for Q{index}: {str(bineval_error)}"
+                )
+
             result = {
                 "index": index,
                 "question": query,
@@ -124,7 +150,10 @@ async def evaluate_provider_simple_qa(
                 "is_correct": is_correct,
                 "grade": grade,
                 "token_count": token_count if not is_llm_response else 0,
-                "token_avg": token_avg if not is_llm_response else 0
+                "token_avg": token_avg if not is_llm_response else 0,
+                "bineval_score": bineval_score,
+                "bineval_dimensions": bineval_dimensions,
+                "bineval_verdicts": bineval_verdicts,
             }
 
             results.append(result)

@@ -202,3 +202,18 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## Interpretable Answer Scoring (Binary-Question Dimensions)
+
+In addition to the single `CORRECT` / `INCORRECT` / `NOT_ATTEMPTED` grade, each SimpleQA result is also scored along independent dimensions by a binary-question judge. For every predicted answer the judge answers a small set of yes/no questions (e.g. *Does it contain the key information from the reference?*, *Does it contradict the reference?*, *Does it directly address the question?*) and aggregates the verdicts into interpretable, per-dimension scores.
+
+This adds three columns to the per-provider SimpleQA result CSVs:
+
+- `bineval_score` — overall aggregated score (`0`–`1`).
+- `bineval_dimensions` — per-dimension scores (JSON), e.g. `{"factual_consistency": 0.5, "relevance": 1.0, ...}`.
+- `bineval_verdicts` — the raw yes/no answer to each question (JSON), retained for inspection so a low score can be traced to the specific facet that failed.
+
+The provider `summary.csv` additionally reports the mean `bineval_score`. Cells are blank when the binary-question judge could not run for an answer.
+
