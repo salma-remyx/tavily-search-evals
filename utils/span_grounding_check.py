@@ -29,6 +29,15 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+# Fallback grounding-judge settings, used when configs/config.json is missing
+# or unloadable (mirrors the TAVILY_DEFAULT_CONFIG pattern in run_evaluation.py).
+# The live values are read from configs/config.json's "grounding_check" block
+# and threaded down through run_evaluation.py.
+GROUNDING_CHECK_DEFAULT_CONFIG = {
+    "model": "gpt-4.1",
+    "temperature": 0.0,
+}
+
 
 class UngroundedSpans(BaseModel):
     """Structured output schema for the grounding judge.
@@ -83,8 +92,8 @@ class SpanGroundingChecker:
 
     def __init__(
         self,
-        llm_model: str = "gpt-4.1",
-        temperature: float = 0.0,
+        llm_model: str = GROUNDING_CHECK_DEFAULT_CONFIG["model"],
+        temperature: float = GROUNDING_CHECK_DEFAULT_CONFIG["temperature"],
         structured_llm: Optional[object] = None,
     ):
         """Initialize the checker.
@@ -127,9 +136,7 @@ class SpanGroundingChecker:
         )
 
         try:
-            detected = self.structured_llm.invoke(
-                [{"role": "user", "content": prompt}]
-            )
+            detected = self.structured_llm.invoke([{"role": "user", "content": prompt}])
             span_texts = getattr(detected, "ungrounded_spans", None) or []
         except Exception as e:  # noqa: BLE001 - infra failure must not break the run
             logger.error("Grounding check failed for query '%s': %s", question, e)
@@ -158,7 +165,12 @@ class SpanGroundingChecker:
             if start == -1:
                 continue
             located.append(
-                {"text": text, "start": start, "end": start + len(text), "grounded": False}
+                {
+                    "text": text,
+                    "start": start,
+                    "end": start + len(text),
+                    "grounded": False,
+                }
             )
         return located
 

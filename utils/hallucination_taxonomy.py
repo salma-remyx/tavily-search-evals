@@ -37,7 +37,7 @@ from typing import Dict, List, Optional
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from .span_grounding_check import SpanGroundingChecker
+from .span_grounding_check import GROUNDING_CHECK_DEFAULT_CONFIG, SpanGroundingChecker
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +111,8 @@ class SpanTaxonomyClassifier:
 
     def __init__(
         self,
-        llm_model: str = "gpt-4.1",
-        temperature: float = 0.0,
+        llm_model: str = GROUNDING_CHECK_DEFAULT_CONFIG["model"],
+        temperature: float = GROUNDING_CHECK_DEFAULT_CONFIG["temperature"],
         structured_llm: Optional[object] = None,
     ):
         """Initialize the classifier.
@@ -172,13 +172,19 @@ class SpanTaxonomyClassifier:
         try:
             result = self._get_llm().invoke([{"role": "user", "content": prompt}])
             for cat in getattr(result, "spans", None) or []:
-                label = cat.label if isinstance(cat.label, SpanLabel) else SpanLabel(cat.label)
+                label = (
+                    cat.label
+                    if isinstance(cat.label, SpanLabel)
+                    else SpanLabel(cat.label)
+                )
                 # A span the detector already flagged can never be SUPPORTED here.
                 if label == SpanLabel.SUPPORTED:
                     label = SpanLabel.UNVERIFIABLE
                 label_by_text[cat.text] = label
         except Exception as e:  # noqa: BLE001 - infra failure must not break the run
-            logger.error("Span taxonomy classification failed for '%s': %s", question, e)
+            logger.error(
+                "Span taxonomy classification failed for '%s': %s", question, e
+            )
 
         labelled = [
             {
@@ -205,8 +211,12 @@ def summarize_taxonomy(answer: str, labelled_spans: List[Dict]) -> Dict:
     contradicted = [s for s in labelled_spans if s["label"] == SpanLabel.CONTRADICTED]
     unverifiable = [s for s in labelled_spans if s["label"] == SpanLabel.UNVERIFIABLE]
     return {
-        "contradiction_score": round(SpanGroundingChecker._coverage(answer, contradicted), 3),
-        "unverifiable_score": round(SpanGroundingChecker._coverage(answer, unverifiable), 3),
+        "contradiction_score": round(
+            SpanGroundingChecker._coverage(answer, contradicted), 3
+        ),
+        "unverifiable_score": round(
+            SpanGroundingChecker._coverage(answer, unverifiable), 3
+        ),
         "contradicted_spans": contradicted,
         "unverifiable_spans": unverifiable,
         "hallucinated": bool(contradicted or unverifiable),
