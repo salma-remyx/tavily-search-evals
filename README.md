@@ -202,3 +202,14 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Delegated Multi-Provider Search (Swarm)**
+
+Adapted from *WebSwarm: Recursive Multi-Agent Orchestration for Deep-and-Wide Web Search*. The providers this framework already integrates (Tavily, Brave, Serper, Perplexity, ...) are treated as a search *swarm*: a multi-faceted query is decomposed into sub-queries, each sub-query is delegated across the providers, and the returned evidence is aggregated into a single answer.
+
+- `DelegatedSearch` (in `utils/delegated_search.py`) exposes the same `search` / `post_process` / `is_llm_response` interface as the provider handlers, so it can be passed to `evaluate_provider_simple_qa` like any other provider and benchmarked head-to-head against the individual providers.
+- Strategies: `fan_out` (every sub-query to every provider, widest coverage) and `round_robin` (one provider per sub-query, cheapest).
+- Decomposition and aggregation are parameter-free by default; pass a custom `decomposer` / `combiner` to restore the paper's LLM-driven planning and aggregation.
+- `run_delegated_evaluation(query, search_provider_params)` builds the live providers through the existing `get_search_handlers` factory and runs the swarm over a single query.
