@@ -41,7 +41,14 @@ observed_landing_zones:
       in the main evaluation pipeline (SimpleQA branch only)
     branch: collabeval-statistically-efficient-collaborative-model-evalu
     timestamp: '2026-07-15T01:01:26Z'
-  last_observed: '2026-07-15T01:01:26Z'
+  - arxiv: 2607.00725v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: evaluate_provider_simple_qa in run_evaluation.py (called
+      from run_evaluation, reached via __main__/argparse); aggregation via save_summary
+      and save_result in utils/utils.py
+    branch: what-survives-into-context-a-diagnostic-for-budget-constrain
+    timestamp: '2026-07-16T00:30:06Z'
+  last_observed: '2026-07-16T00:30:06Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-15T01:01:26Z'
+last_updated: '2026-07-16T00:30:06Z'
