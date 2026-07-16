@@ -202,3 +202,12 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Answer-in-Context Diagnostic**
+
+- Adapted from [What Survives Into Context: A Diagnostic for Budget-Constrained Multi-Hop RAG and When Submodular Evidence Packing Improves It](https://arxiv.org/abs/2607.00725v1).
+- Augments the SimpleQA benchmark with an *answer-in-context* signal: for each query, it checks whether the reference answer survives as a contiguous span in the **packed reader context** (the documents actually fed to the answer extractor) under a fixed token budget -- not merely whether the answer was retrieved. This fills a gap left by the Document Relevance benchmark and the SimpleQA correctness grade, which never test survival into the context the reader actually sees.
+- Each SimpleQA per-example result row now carries `aic_in_context` (gold survives the budgeted context), `aic_in_context_full` (survival in the full retrieved context -- the recall analog the paper argues is misleading), `aic_coverage` (content-token coverage), and `aic_budget_tokens`. The SimpleQA `summary.csv` adds `aic_in_context_rate`, `aic_mean_coverage`, and `aic_separation` (the accuracy gap between examples whose gold answer survived the budget and those whose did not -- surfacing whether context survival separates correct answers from incorrect ones).
+- The default budget is 512 whitespace tokens (`utils.answer_in_context.DEFAULT_CONTEXT_BUDGET_TOKENS`); pass a custom `budget_tokens` to `answer_in_context()` to change it, or `None` to disable truncation.

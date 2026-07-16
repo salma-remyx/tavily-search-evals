@@ -11,6 +11,8 @@ import random
 import uuid
 import shutil
 
+from .answer_in_context import summarize_answer_in_context
+
 
 
 class EvaluationType(Enum):
@@ -39,7 +41,7 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
 
     with open(summary_file, 'w', newline='') as csvfile:
         if evaluation_type == EvaluationType.SIMPLEQA:
-            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
+            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'aic_mean_coverage', 'aic_in_context_rate', 'aic_separation', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -57,11 +59,21 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                 accuracy = correct_count / examples_count if examples_count > 0 else 0.0
                 accuracy = round(accuracy, 3)
 
+                # Provider-level answer-in-context aggregate: does gold-answer
+                # survival in the budgeted context separate correct from
+                # incorrect answers (the paper's headline signal)?
+                aic_summary = summarize_answer_in_context(
+                    provider_full_results.to_dict("records")
+                )
+
                 writer.writerow({
                 'provider': provider_name,
                 'accuracy': accuracy,
                 'correct_count': correct_count,
                 'total_count': examples_count,
+                'aic_mean_coverage': aic_summary['mean_coverage'],
+                'aic_in_context_rate': aic_summary['in_context_rate'],
+                'aic_separation': aic_summary['separation'],
                 'timestamp': timestamp
             })
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
@@ -202,7 +214,7 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
     os.makedirs(output_dir, exist_ok=True)
     
     if evaluation_type == EvaluationType.SIMPLEQA:
-        fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
+        fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg', 'aic_in_context', 'aic_in_context_full', 'aic_coverage', 'aic_budget_tokens']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
 

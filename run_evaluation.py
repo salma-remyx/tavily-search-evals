@@ -13,6 +13,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils.answer_in_context import answer_in_context, DEFAULT_CONTEXT_BUDGET_TOKENS
 
 load_dotenv()
 
@@ -100,9 +101,18 @@ async def evaluate_provider_simple_qa(
                 search_ans, token_count, token_avg = await search_handler.post_process(search_result)
             
             answer = post_processor.extract_answer(
-                query=query, 
-                is_llm_response=is_llm_response, 
+                query=query,
+                is_llm_response=is_llm_response,
                 search_result=search_ans
+            )
+            # Answer-in-context diagnostic: does the gold answer survive the
+            # reader-context budget applied to the packed context (search_ans)?
+            # Fills a real gap -- the repo otherwise checks only relevance and
+            # extracted-answer correctness, never survival into the context.
+            aic = answer_in_context(
+                packed_context=search_ans,
+                gold_answer=reference_answer,
+                budget_tokens=DEFAULT_CONTEXT_BUDGET_TOKENS,
             )
             # Evaluate the answer
             evaluation_result = await evaluator.evaluate(
@@ -110,7 +120,7 @@ async def evaluate_provider_simple_qa(
                 {"answer": answer},
                 {"answer": reference_answer}
             )
-            
+
             is_correct = evaluation_result['score'] == 1.0
             if is_correct:
                 correct_count += 1
@@ -124,7 +134,11 @@ async def evaluate_provider_simple_qa(
                 "is_correct": is_correct,
                 "grade": grade,
                 "token_count": token_count if not is_llm_response else 0,
-                "token_avg": token_avg if not is_llm_response else 0
+                "token_avg": token_avg if not is_llm_response else 0,
+                "aic_in_context": aic["in_context"],
+                "aic_in_context_full": aic["in_context_full"],
+                "aic_coverage": aic["coverage"],
+                "aic_budget_tokens": DEFAULT_CONTEXT_BUDGET_TOKENS,
             }
 
             results.append(result)
