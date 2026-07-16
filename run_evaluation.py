@@ -12,7 +12,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
-from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results, VerifierScorer
 
 load_dotenv()
 
@@ -77,7 +77,16 @@ async def evaluate_provider_simple_qa(
 ):
     """Evaluate a single search provider on the dataset."""
     evaluator = CorrectnessEvaluator(CorrectnessConfig(model_name=evaluator_model))
-    
+
+    # Continuous verifier (LLM-as-a-Verifier, arXiv:2607.05391v1): same A/B/C
+    # judge as the discrete grader, but reads the scoring-token distribution
+    # instead of its argmax to emit a continuous correctness score.
+    try:
+        verifier = VerifierScorer(model_name=evaluator_model)
+    except Exception as e:
+        logger.warning(f"[{provider_name}] Verifier scorer unavailable: {str(e)}")
+        verifier = None
+
     results = []
     correct_count = 0
     
@@ -116,6 +125,20 @@ async def evaluate_provider_simple_qa(
                 correct_count += 1
 
             grade = evaluation_result['value']
+
+            # Continuous correctness score via scoring-token logit expectation.
+            # Failures degrade gracefully (None) so the discrete pipeline is unaffected.
+            verifier_score = None
+            if verifier is not None:
+                try:
+                    verifier_score = (await verifier.score(
+                        question=query,
+                        predicted_answer=answer,
+                        reference_answer=reference_answer,
+                    ))["verifier_score"]
+                except Exception as ve:
+                    logger.warning(f"[{provider_name}] Verifier scoring failed for Q{index}: {str(ve)}")
+
             result = {
                 "index": index,
                 "question": query,
@@ -123,6 +146,7 @@ async def evaluate_provider_simple_qa(
                 "predicted_answer": answer,
                 "is_correct": is_correct,
                 "grade": grade,
+                "verifier_score": verifier_score,
                 "token_count": token_count if not is_llm_response else 0,
                 "token_avg": token_avg if not is_llm_response else 0
             }

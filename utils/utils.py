@@ -202,7 +202,7 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
     os.makedirs(output_dir, exist_ok=True)
     
     if evaluation_type == EvaluationType.SIMPLEQA:
-        fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
+        fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'verifier_score', 'token_count', 'token_avg']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
 

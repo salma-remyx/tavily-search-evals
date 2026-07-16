@@ -202,3 +202,13 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Continuous Verifier Scoring (SimpleQA)**
+
+In addition to the discrete `CORRECT`/`INCORRECT`/`NOT_ATTEMPTED` grade, SimpleQA results now carry a continuous `verifier_score` (in `[0, 1]`) produced by an **LLM-as-a-Verifier** style judge. Instead of taking the argmax of the model's A/B/C grading token, the verifier reads the distribution over those scoring tokens (their logprobs) and computes the expected correctness probability. This exposes fine-grained separation between answers that the binary grade collapses.
+
+- Written to the `verifier_score` column of each provider's `{provider}_simpleqa_results.csv`.
+- The discrete grade and reported accuracy are unchanged; the continuous score is additive and degrades gracefully (recorded as empty) if the verifier call fails.
+- Implemented in `utils/verifier_score.py` (`VerifierScorer`), invoked per example in the SimpleQA evaluation pipeline.
