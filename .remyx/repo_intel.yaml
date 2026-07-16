@@ -48,7 +48,14 @@ observed_landing_zones:
       and save_result in utils/utils.py
     branch: what-survives-into-context-a-diagnostic-for-budget-constrain
     timestamp: '2026-07-16T00:30:06Z'
-  last_observed: '2026-07-16T00:30:06Z'
+  - arxiv: 2607.05391v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation.py::evaluate_provider_simple_qa \u2014 VerifierScorer\
+      \ is instantiated there and called per example; that function is invoked from\
+      \ the main runner loop (run_evaluation.py:304/330), which asyn"
+    branch: llm-as-a-verifier-a-general-purpose-verification-framework
+    timestamp: '2026-07-16T11:21:09Z'
+  last_observed: '2026-07-16T11:21:09Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-16T00:30:06Z'
+last_updated: '2026-07-16T11:21:09Z'
