@@ -1,0 +1,231 @@
+name: Outrider Kimi refine (one-off)
+
+# One-off refinement dispatch using Moonshot AI's Kimi API as the Claude
+# Code backend. Same refiner-workflow layer as outrider-weekly-refine.yml
+# (branch pick → gap analysis → refinement pass) but points the
+# Anthropic-compatible endpoint at Kimi with kimi-k3 as the model.
+#
+# Auth: MOONSHOT_API_KEY secret.
+# Model: kimi-k3.
+# Base URL: https://api.moonshot.ai/anthropic
+#
+# Manual-only (workflow_dispatch); does not schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback-days:
+        description: 'Days to look back for drafter branches (default 7).'
+        required: false
+        default: '7'
+      pick-override:
+        description: 'Optional branch name to bypass the picker heuristic.'
+        required: false
+        default: ''
+      pick-override-arxiv:
+        description: 'Optional arxiv_id to pair with pick-override.'
+        required: false
+        default: ''
+
+concurrency:
+  group: outrider-kimi-refiner
+  cancel-in-progress: false
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick candidate branch from repo_intel.yaml
+        id: pick
+        env:
+          LOOKBACK_DAYS: ${{ inputs.lookback-days || '7' }}
+          OVERRIDE: ${{ inputs.pick-override || '' }}
+          OVERRIDE_ARXIV: ${{ inputs.pick-override-arxiv || '' }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+
+          if [ -n "$OVERRIDE" ]; then
+            echo "→ pick override: $OVERRIDE"
+            BRANCH="$OVERRIDE"
+          else
+            SINCE=$(date -u -d "$LOOKBACK_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+            KNOWN_BRANCHES=$(gh api "repos/$REPO/contents/.remyx/repo_intel.yaml?ref=main" \
+              --jq '.content' 2>/dev/null | base64 -d 2>/dev/null \
+              | awk '
+                  /confirmed_by:/ {in_cb=1; next}
+                  in_cb && /branch:/ {b=$2; gsub(/^[ ]*|[ ]*$/, "", b); print b}
+                  /^[^ ]/ {in_cb=0}
+                ' | sort -u)
+
+            if [ -z "$KNOWN_BRANCHES" ]; then
+              echo "::warning::No drafter-known branches in .remyx/repo_intel.yaml"
+              echo "picked=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            BRANCH=$(echo "$KNOWN_BRANCHES" \
+              | while read -r name; do
+                  [ -z "$name" ] && continue
+                  DATE=$(gh api "repos/$REPO/branches/$name" \
+                    --jq '.commit.commit.committer.date' 2>/dev/null || echo "")
+                  if [ -n "$DATE" ] && [ "$DATE" \> "$SINCE" ]; then
+                    echo "$DATE $name"
+                  fi
+                done \
+              | sort -r | head -1 | awk '{print $2}')
+          fi
+
+          if [ -z "$BRANCH" ]; then
+            echo "::warning::No candidate branches in past $LOOKBACK_DAYS days"
+            echo "picked=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          OPEN_PR=$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$OPEN_PR" ]; then
+            echo "::warning::Branch $BRANCH already has open PR #$OPEN_PR; skipping"
+            echo "picked=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Resolve arxiv_id via regex extraction (field-splitting on
+          # `  - arxiv: <val>` would grab the "arxiv:" label instead of value)
+          if [ -n "$OVERRIDE_ARXIV" ]; then
+            ARXIV="$OVERRIDE_ARXIV"
+          else
+            ARXIV=$(gh api "repos/$REPO/contents/.remyx/repo_intel.yaml?ref=main" \
+              --jq '.content' 2>/dev/null | base64 -d 2>/dev/null \
+              | awk -v b="$BRANCH" '
+                  /confirmed_by:/ {in_cb=1; next}
+                  in_cb {
+                    if (match($0, /arxiv:[ ]*([^ ]+)/, m)) { arxiv=m[1] }
+                    if (match($0, /branch:[ ]*([^ ]+)/, n)) {
+                      if (n[1] == b) { print arxiv; exit }
+                    }
+                  }
+                  /^[^ ]/ {in_cb=0}
+                ' || echo "")
+          fi
+
+          echo "→ picked branch: $BRANCH"
+          echo "→ arxiv: ${ARXIV:-<unresolved>}"
+
+          if [ -z "$ARXIV" ]; then
+            echo "::error::arxiv_id could not be resolved for branch $BRANCH; re-dispatch with pick-override-arxiv=<id>"
+            exit 1
+          fi
+          echo "picked=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "arxiv=$ARXIV" >> "$GITHUB_OUTPUT"
+
+      - name: Generate gap analysis via Kimi (kimi-k3)
+        id: gap
+        if: steps.pick.outputs.picked != ''
+        env:
+          MOONSHOT_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          BRANCH: ${{ steps.pick.outputs.picked }}
+          ARXIV: ${{ steps.pick.outputs.arxiv }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYEOF' > gap_analysis.md
+          import json, os, re, subprocess, textwrap, urllib.request
+
+          repo = os.environ["REPO"]
+          branch = os.environ["BRANCH"]
+          arxiv = os.environ.get("ARXIV", "")
+
+          diff = subprocess.check_output([
+              "gh", "api", f"repos/{repo}/compare/main...{branch}",
+              "--jq", "[.files[] | {status, additions, deletions, path: .filename}]"
+          ], text=True).strip()
+
+          paper_title = "(unknown)"
+          if arxiv:
+              try:
+                  req = urllib.request.Request(f"https://export.arxiv.org/api/query?id_list={arxiv}")
+                  body = urllib.request.urlopen(req, timeout=15).read().decode()
+                  m = re.search(r"<entry>.*?<title>([^<]+)</title>", body, re.DOTALL)
+                  if m and "arXiv.org" not in m.group(1):
+                      paper_title = m.group(1).strip().replace("\n", " ")
+              except Exception:
+                  pass
+
+          prompt_body = textwrap.dedent(f"""
+              You are auditing an Outrider-drafted branch against its source paper before an Opus-tier refinement pass. Produce a structured gap-analysis markdown with this shape:
+
+              * Lead paragraph naming what the branch attempted vs what the paper actually specifies (2-3 sentences)
+              * A section per gap: `## Gap N — <short title>` with fields for File (path:line), Current behavior, Paper (arxiv:{arxiv}) specification, and the specific Fix.
+              * Final `## Acceptance criteria` bulleted list of verifiable outcomes.
+
+              Focus on MECHANISM-LEVEL divergences (wrong math, invented heuristics, missing paper rules, category errors) — not stylistic. If the branch is faithful, say so and list only cosmetic items.
+
+              Branch: {branch}
+              Paper: {paper_title} (arxiv:{arxiv})
+              Files touched:
+              {diff}
+
+              Read the paper (arxiv HTML at https://arxiv.org/html/{arxiv}) and compare against the actual branch code (repo {repo}, ref {branch}). Emit the gap analysis in markdown.
+              """).strip()
+
+          req = urllib.request.Request(
+              "https://api.moonshot.ai/anthropic/v1/messages",
+              data=json.dumps({
+                  "model": "kimi-k3",
+                  "max_tokens": 4096,
+                  "messages": [{"role": "user", "content": prompt_body}],
+              }).encode(),
+              headers={
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {os.environ['MOONSHOT_KEY']}",
+                  "anthropic-version": "2023-06-01",
+              },
+              method="POST",
+          )
+          try:
+              resp = urllib.request.urlopen(req, timeout=180).read()
+              data = json.loads(resp)
+              text_parts = []
+              for block in data.get("content", []):
+                  if block.get("type") == "text":
+                      text_parts.append(block.get("text", ""))
+              print("\n".join(text_parts) or "(no content)")
+          except urllib.error.HTTPError as e:
+              body = e.read().decode(errors="replace")
+              print(f"HTTP {e.code} error from Kimi:\n{body}\n\nFallback lead-content: refine the branch to more faithfully port the mechanism from arxiv:{arxiv} ({paper_title}).")
+          PYEOF
+
+          echo "→ gap analysis (first 400 chars):"
+          head -c 400 gap_analysis.md
+          echo ""
+          {
+            echo 'markdown<<GAP_EOF'
+            cat gap_analysis.md
+            echo 'GAP_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Outrider refinement via Kimi (kimi-k3)
+        if: steps.pick.outputs.picked != '' && steps.gap.outputs.markdown != ''
+        uses: remyxai/outrider@v1
+        env:
+          REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.MOONSHOT_API_KEY }}
+          ANTHROPIC_MODEL: kimi-k3
+        with:
+          interest-id: 7a721f95-8772-4e55-bc30-3d29750cd28d
+          mode: recommend
+          pin-arxiv: ${{ steps.pick.outputs.arxiv }}
+          start-from-ref: ${{ steps.pick.outputs.picked }}
+          lead-content: ${{ steps.gap.outputs.markdown }}
+          staged-synthesis: 'true'
+          publish: pr
+          model-base-url: 'https://api.moonshot.ai/anthropic'
+          rate-limit-days: '0'
