@@ -202,3 +202,20 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Provider Elo Ranking (SimpleQA)**
+
+In addition to per-provider accuracy, SimpleQA runs rank providers head-to-head with an Elo rating built from per-question pairwise comparisons (adapted from [RAGElo](https://arxiv.org/abs/2406.14783), arXiv:2406.14783). For every question, each pair of providers is compared and the outcome (win / loss / tie) is aggregated into an Elo rating, so providers are ordered by relative answer quality rather than by raw accuracy alone.
+
+By default the win/loss/tie outcome is derived from the existing correctness grades the evaluation already computes (no extra API calls). Pass `use_judge=True` to `compute_elo_ranking` to instead compare the raw predicted answers with an LLM judge.
+
+The ranking is written to `elo_ranking.json` alongside `summary.csv` in the SimpleQA output directory:
+
+```json
+[
+  {"provider": "tavily", "elo": 1043.2, "rank": 1, "wins": 4, "losses": 1, "ties": 1, "matches": 6},
+  {"provider": "exa", "elo": 988.5, "rank": 2, "wins": 2, "losses": 3, "ties": 1, "matches": 6}
+]
+```

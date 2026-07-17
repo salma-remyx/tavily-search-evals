@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, timezone
 import logging
 import os
 import json
@@ -8,6 +7,7 @@ import time
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
+from evaluators.elo_evaluator import compute_elo_ranking, save_elo_ranking
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
@@ -351,6 +351,23 @@ async def run_evaluation(
                     
 
         save_summary(provider_results, output_dir, evaluation_type)
+
+        # Rank providers head-to-head with Elo over per-question pairwise
+        # comparisons (adapted from RAGElo, arXiv:2406.14783). Only SimpleQA
+        # produces the per-question grades the ranking needs; the default path
+        # derives outcomes from the existing correctness grades (no extra API).
+        if evaluation_type == EvaluationType.SIMPLEQA and len(provider_results) > 1:
+            try:
+                elo_ranking = await compute_elo_ranking(provider_results, evaluator_model=evaluator_model)
+                save_elo_ranking(elo_ranking, output_dir)
+                logger.info("Provider Elo ranking:")
+                for entry in elo_ranking:
+                    logger.info(
+                        f"  [{entry['rank']}] {entry['provider']}: Elo {entry['elo']:.0f} "
+                        f"(W/L/T {entry['wins']}/{entry['losses']}/{entry['ties']})"
+                    )
+            except Exception as e:
+                logger.error(f"Error computing Elo ranking: {str(e)}")
 
         print("\n===== EVALUATION RESULTS =====")
         print(f"Evaluation Type: {evaluation_type}")
