@@ -56,6 +56,18 @@ observed_landing_zones:
     branch: llm-as-a-verifier-a-general-purpose-verification-framework
     timestamp: '2026-07-16T11:21:09Z'
   last_observed: '2026-07-16T11:21:09Z'
+- path: evaluators/
+  shape_tags:
+  - unclassified
+  confirmed_by:
+  - arxiv: 2406.14783v2
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation() in run_evaluation.py \u2014 the SIMPLEQA\
+      \ branch (run_evaluation.py:361), guarded by evaluation_type == SIMPLEQA and\
+      \ len(provider_results) > 1; invoked via asyncio.run(run_evaluation(...)) "
+    branch: evaluating-rag-fusion-with-ragelo-an-automated-elo-based-fra
+    timestamp: '2026-07-17T11:25:19Z'
+  last_observed: '2026-07-17T11:25:19Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-16T11:21:09Z'
+last_updated: '2026-07-17T11:25:19Z'
