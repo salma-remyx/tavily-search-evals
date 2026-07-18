@@ -202,3 +202,17 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Answer-Matching Judge (Triangulation)**
+
+By default, the SimpleQA benchmark grades each predicted answer with a single A/B/C correctness judge (`CorrectnessEvaluator`). Single-judge grading is a known reliability weakness. When you pass `--triangulate`, a second, methodologically independent judge — `AnswerMatchingEvaluator` — grades the same answer with a binary *does this mean the same thing as the reference?* (YES/NO) prompt and the result rows record both verdicts plus whether the two judges agree:
+
+- `grade` — the existing A/B/C correctness verdict (CORRECT / INCORRECT / NOT_ATTEMPTED)
+- `answer_match` — the binary match verdict (MATCH / NO_MATCH)
+- `judges_agree` — whether the two judges agree on correct-vs-not
+- per-provider `judge_agreement_rate` is added to the run summary
+
+Off by default to preserve the existing pipeline and cost profile. Adapted from [Answer Matching Outperforms Multiple Choice for Language Model Evaluation](https://arxiv.org/abs/2507.02856).
+
