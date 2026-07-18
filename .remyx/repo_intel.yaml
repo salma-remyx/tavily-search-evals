@@ -67,7 +67,14 @@ observed_landing_zones:
       \ len(provider_results) > 1; invoked via asyncio.run(run_evaluation(...)) "
     branch: evaluating-rag-fusion-with-ragelo-an-automated-elo-based-fra
     timestamp: '2026-07-17T11:25:19Z'
-  last_observed: '2026-07-17T11:25:19Z'
+  - arxiv: 2507.02856v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation.py \u2014 the `__main__` block (new `--triangulate`\
+      \ flag) calls `run_evaluation(...)`, which calls `evaluate_provider_simple_qa(...)`;\
+      \ off by default so the existing path is unchanged."
+    branch: answer-matching-outperforms-multiple-choice-for-language-mod
+    timestamp: '2026-07-18T02:22:59Z'
+  last_observed: '2026-07-18T02:22:59Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-17T11:25:19Z'
+last_updated: '2026-07-18T02:22:59Z'
