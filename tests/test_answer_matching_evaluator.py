@@ -30,8 +30,10 @@ class _FakeMatchLLM:
 
     def __init__(self, verdict):
         self._verdict = verdict
+        self.seen_messages = []
 
     def invoke(self, messages):
+        self.seen_messages.append(messages)
         return _FakeGrade(self._verdict)
 
 
@@ -169,3 +171,38 @@ def test_answer_matching_judge_is_drop_in_for_correctness(monkeypatch):
     # The existing evaluator advertises the same contract on its description.
     assert correctness.evaluation_name == "correctness_evaluator"
     assert matcher.evaluation_name == "answer_matching_evaluator"
+
+
+def test_judge_prompt_mirrors_canonical_paper_rules(monkeypatch):
+    """The judge prompt carries the paper's canonical matching rules.
+
+    The authors' reference judge prompt (arXiv:2507.02856) grades with a
+    coverage rule (the response must cover everything in the reference; more
+    specific is OK) and a 1% numeric relative-error tolerance. The repo's
+    YES/NO adaptation must keep both rules to stay faithful to the paper.
+    """
+    prompt = AnswerMatchingEvaluator.ANSWER_MATCH_TEMPLATE
+    # Coverage rule: predicted answer must cover the reference; more
+    # specific / extra correct detail is still a match.
+    assert "cover everything" in prompt
+    assert "more specific" in prompt
+    # Numeric rule: 1% relative-error tolerance for numeric references.
+    assert "1% relative error" in prompt
+    # Non-attempts are penalized (no false-positive matches on refusals).
+    assert "does not attempt" in prompt
+
+
+def test_judge_prompt_embeds_question_reference_and_prediction(monkeypatch):
+    """evaluate() formats the real example fields into the judge prompt."""
+    matcher = _real_matcher(monkeypatch, "YES")
+    asyncio.run(
+        matcher.evaluate(
+            {"question": "Who wrote Hamlet?"},
+            {"answer": "William Shakespeare"},
+            {"answer": "Shakespeare"},
+        )
+    )
+    sent = matcher.llm.seen_messages[0][0]["content"]
+    assert "Who wrote Hamlet?" in sent
+    assert "William Shakespeare" in sent
+    assert "Shakespeare" in sent

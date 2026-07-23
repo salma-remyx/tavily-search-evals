@@ -216,3 +216,5 @@ By default, the SimpleQA benchmark grades each predicted answer with a single A/
 
 Off by default to preserve the existing pipeline and cost profile. Adapted from [Answer Matching Outperforms Multiple Choice for Language Model Evaluation](https://arxiv.org/abs/2507.02856).
 
+The judge prompt mirrors the canonical matching rules from the paper's reference implementation: a coverage rule (the predicted answer must cover everything in the reference answer; more specific or paraphrased answers still match) and a 1% relative-error tolerance for numeric answers.
+

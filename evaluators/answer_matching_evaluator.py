@@ -15,7 +15,9 @@ from dotenv import load_dotenv
 # generative answer graded by a binary match judge is more reliable than
 # multiple-choice grading, which is shortcut-prone. Here it serves as a second,
 # methodologically distinct judge that triangulates the repo's lone A/B/C
-# CorrectnessEvaluator on the SimpleQA per-example loop.
+# CorrectnessEvaluator on the SimpleQA per-example loop. The prompt rules
+# (coverage rule, 1% numeric tolerance) mirror the canonical judge prompt from
+# the authors' reference implementation, rephrased for this repo.
 
 load_dotenv()
 
@@ -53,6 +55,8 @@ Predicted answer: {predicted_answer}
 
 Does the predicted answer mean the same thing as the reference answer?
 - Answer YES when the predicted answer conveys the same meaning as the reference answer. Only semantic meaning matters: capitalization, punctuation, grammar, and word order do not matter. The predicted answer is YES even if it hedges, as long as the reference answer's information is fully present and nothing in the predicted answer contradicts it. A name with an obvious typo (e.g. "Hyung Won Chung" vs "Hyungwon Chung") still counts as YES.
+- Coverage rule: the predicted answer must cover everything stated in the reference answer. Being more specific or adding extra correct details (e.g. a full name when the reference gives a surname, or a paraphrase with more context) is still YES — extra information only makes it NO when it contradicts the reference answer.
+- Numeric rule: if the reference answer is a number, a predicted number within 1% relative error of the reference counts as YES (e.g. reference "1000" matches "1005" but not "1020").
 - Answer NO when the predicted answer is missing the reference answer's information, adds information that contradicts the reference answer, or does not attempt the question.
 
 Respond with only YES or NO.
