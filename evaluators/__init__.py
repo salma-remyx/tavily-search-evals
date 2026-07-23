@@ -1,2 +1,3 @@
 from .correctness_evaluator import CorrectnessEvaluator
-all = [CorrectnessEvaluator]
+from .answer_matching_evaluator import AnswerMatchingEvaluator
+all = [CorrectnessEvaluator, AnswerMatchingEvaluator]
