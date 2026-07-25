@@ -1,0 +1,44 @@
+{
+  "dataset_name": "litsearch_test_set",
+  "description": "Small literature-search sample in the style of LitSearch (Asai et al., 2024; arXiv:2407.18940). Each query lists its gold (ground-truth) papers as arXiv identifiers plus title. Scoring is recall of gold papers within the retrieved web documents. Curated from well-attested ML/NLP papers; not the full 597-query LitSearch release.",
+  "dataset_size": 6,
+  "dataset": [
+    {
+      "question": "Where can I find research on chain-of-thought prompting for eliciting reasoning in large language models?",
+      "gold_papers": [
+        "arxiv:2201.11903 Chain-of-Thought Prompting Elicits Reasoning in Large Language Models"
+      ]
+    },
+    {
+      "question": "Which papers study instruction tuning of language models to improve zero-shot generalization?",
+      "gold_papers": [
+        "arxiv:2103.10360 Finetuned Language Models Are Zero-Shot Learners",
+        "arxiv:2212.10560 Self-Instruct: Aligning Language Models with Self-Generated Instructions"
+      ]
+    },
+    {
+      "question": "What work introduces retrieval-augmented generation for knowledge-intensive NLP tasks?",
+      "gold_papers": [
+        "arxiv:2005.11401 Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
+      ]
+    },
+    {
+      "question": "Which research proposes aligning language models to follow instructions using human feedback (RLHF)?",
+      "gold_papers": [
+        "arxiv:2203.02155 Training Language Models to Follow Instructions with Human Feedback"
+      ]
+    },
+    {
+      "question": "Where can I find research on low-rank adaptation for efficiently fine-tuning large language models?",
+      "gold_papers": [
+        "arxiv:2106.09685 LoRA: Low-Rank Adaptation of Large Language Models"
+      ]
+    },
+    {
+      "question": "Which paper analyzes scaling laws for neural language models?",
+      "gold_papers": [
+        "arxiv:2001.08361 Scaling Laws for Neural Language Models"
+      ]
+    }
+  ]
+}

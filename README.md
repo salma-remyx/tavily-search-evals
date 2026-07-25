@@ -13,6 +13,11 @@ This repository provides evaluation frameworks for benchmarking web search APIs,
     - Involves generating a dynamic dataset using the open-source [Dynamic Eval Datasets Generator](https://github.com/Eyalbenba/tavily-web-eval-generator).
     - You can use the provided dataset (`datasets/document_relevance_dynamic_test_set.json`) or easily create new datasets on topics of your choice with the above generator.
     - This flexibility allows evaluation on domain-specific or real-time topics, making the benchmark more reflective of production-like tasks than static datasets.
+3. Literature Search (LitSearch) Recall Benchmark
+    - Scores each provider on **recall** of ground-truth ("gold") papers for realistic literature-search queries, in the style of [LitSearch](https://arxiv.org/abs/2407.18940).
+    - Runs the provided sample dataset (`datasets/litsearch_test_set.json`); each query lists its gold papers as arXiv identifiers plus title.
+    - Recall is computed with a self-contained, dependency-free scorer (`utils/retrieval_recall.py`) that matches gold papers to retrieved documents by arXiv id and normalized-title overlap — no external services or API keys beyond the search providers themselves.
+    - Adapted from *LitSearch: A Retrieval Benchmark for Scientific Literature Search* (Asai et al., 2024); the closed-corpus exact-id match is replaced by open-web title/arXiv-id matching. Run with `--evaluation_type litsearch`.
 
 ### **Features**
 - Comparative evaluation of multiple search providers

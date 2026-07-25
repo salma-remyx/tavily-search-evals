@@ -16,6 +16,7 @@ import shutil
 class EvaluationType(Enum):
     DOCUMENT_RELEVANCE = "document_relevance"
     SIMPLEQA = "simpleqa"
+    LITSEARCH = "litsearch"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -42,6 +43,8 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
             fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
+        elif evaluation_type == EvaluationType.LITSEARCH:
+            fieldnames = ['provider', 'mean_recall', 'matched_count', 'total_count', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -74,6 +77,21 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                     'relevant_docs_count': provider_metrics.get('relevant_docs', 0),
                     'total_docs_count': provider_metrics.get('total_docs', 0),
                     'app_name': provider_metrics.get('app_name', ''),
+                    'timestamp': timestamp
+                })
+            elif evaluation_type == EvaluationType.LITSEARCH:
+                # For LitSearch, recompute mean recall from the per-example results CSV
+                matched_count = int(provider_full_results['matched_count'].sum()) \
+                    if 'matched_count' in provider_full_results.columns else 0
+                if 'recall' in provider_full_results.columns and examples_count > 0:
+                    mean_recall = round(float(provider_full_results['recall'].astype(float).sum()) / examples_count, 3)
+                else:
+                    mean_recall = 0.0
+                writer.writerow({
+                    'provider': provider_name,
+                    'mean_recall': mean_recall,
+                    'matched_count': matched_count,
+                    'total_count': examples_count,
                     'timestamp': timestamp
                 })
 
@@ -152,11 +170,14 @@ def prepare_examples(
     for provider in provider_names:
         if not rerun or (random_sample is not None and random_sample > 0) or not os.path.exists(f"{results_dir}/{provider}_{evaluation_type.value}_results.csv"):
             for _, row in df.iterrows():
-                examples[provider].append({
+                entry = {
                     "question": row["problem"],
                     "answer": row["answer"],
-                    "index": int(row["index"])
-                })
+                    "index": int(row["index"]),
+                }
+                if "gold_papers" in df.columns:
+                    entry["gold_papers"] = row["gold_papers"]
+                examples[provider].append(entry)
         else:
             results_file = f"{results_dir}/{provider}_{evaluation_type.value}_results.csv"
             if os.path.exists(results_file):
@@ -170,11 +191,14 @@ def prepare_examples(
             logger.info(f"[{provider}] Removed {len(processed_indices)} already processed examples")
 
             for _, row in provider_df.iterrows():
-                examples[provider].append({
+                entry = {
                     "question": row["problem"],
                     "answer": row["answer"],
-                    "index": int(row["index"])
-                })
+                    "index": int(row["index"]),
+                }
+                if "gold_papers" in provider_df.columns:
+                    entry["gold_papers"] = row["gold_papers"]
+                examples[provider].append(entry)
 
             logger.info(f"[{provider}] Loaded {len(examples[provider])} examples")
 
@@ -205,6 +229,8 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
         fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
+    elif evaluation_type == EvaluationType.LITSEARCH:
+        fieldnames = ['index', 'question', 'gold_count', 'matched_count', 'recall', 'matched', 'token_count', 'token_avg']
 
     file_exists = os.path.exists(f"{output_dir}/{provider_name}_{evaluation_type.value}_results.csv")
     write_mode = 'a' if file_exists else 'w'

@@ -12,7 +12,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
-from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results, load_litsearch_data, recall_at_k
 
 load_dotenv()
 
@@ -36,16 +36,20 @@ def get_dataset_path(evaluation_type: EvaluationType) -> str:
         return "datasets/document_relevance_dynamic_test_set.json"
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return "datasets/simple_qa_test_set.csv"
+    elif evaluation_type == EvaluationType.LITSEARCH:
+        return "datasets/litsearch_test_set.json"
 
 
 def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: Optional[int] = None, random_sample: Optional[int] = None):
     """Load data based on evaluation type."""
     dataset_path = get_dataset_path(evaluation_type)
-    
+
     if evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         return load_document_relevance_eval_data(dataset_path, start_index, end_index, random_sample)
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return load_csv_data(dataset_path, start_index, end_index, random_sample)
+    elif evaluation_type == EvaluationType.LITSEARCH:
+        return load_litsearch_data(dataset_path, start_index, end_index, random_sample)
 
 
 async def get_search_handlers(search_provider_params: Dict[str, Dict[str, Any]], token_model: str = "gpt-4.1"):
@@ -223,6 +227,74 @@ async def evaluate_provider_document_relevance(
         "quotient_client": quotient_client,
         "app_name": app_name
     }
+async def evaluate_provider_litsearch(
+    provider_name: str,
+    search_handler,
+    examples: List[Dict],
+    output_dir: str,
+    evaluation_type: EvaluationType,
+    batch_size: int = 3,
+):
+    """Evaluate a provider on literature-search recall (LitSearch-style).
+
+    Retrieves documents for each query and scores recall of the gold papers
+    via :func:`recall_at_k`. Self-contained: no QuotientAI dependency.
+    """
+    results = []
+
+    async def process_example(example):
+        query = example["question"]
+        gold_papers = example.get("gold_papers", [])
+        index = example["index"]
+        try:
+            search_result = await search_handler.search(query)
+            documents, token_count, token_avg = await search_handler.post_process(
+                search_result, evaluation_type=EvaluationType.DOCUMENT_RELEVANCE
+            )
+            scored = recall_at_k(documents, gold_papers)
+            result = {
+                "index": index,
+                "question": query,
+                "gold_count": scored["gold_count"],
+                "matched_count": len(scored["matched"]),
+                "recall": scored["recall"],
+                "matched": json.dumps(scored["matched"]),
+                "token_count": token_count,
+                "token_avg": token_avg,
+            }
+            results.append(result)
+            save_result(result, provider_name, output_dir, evaluation_type)
+            logger.info(f"[{provider_name}] Q{index}: recall={scored['recall']:.2f} ({len(scored['matched'])}/{scored['gold_count']})")
+            return result
+        except Exception as e:
+            logger.error(f"[{provider_name}] Error evaluating example {index}: {str(e)}")
+            results.append({
+                "index": index,
+                "question": query,
+                "gold_count": len(gold_papers),
+                "matched_count": 0,
+                "recall": 0.0,
+                "matched": "[]",
+                "token_count": 0,
+                "token_avg": 0,
+                "grade": "ERROR",
+                "error": str(e),
+            })
+            return None
+
+    for i in range(0, len(examples), batch_size):
+        batch = examples[i:i + batch_size]
+        await asyncio.gather(*[process_example(example) for example in batch])
+        time.sleep(3.0)  # avoid rate limiting
+
+    mean_recall = round(sum(r.get("recall", 0.0) for r in results) / len(results), 3) if results else 0.0
+    return {
+        "provider": provider_name,
+        "results": results,
+        "mean_recall": mean_recall,
+        "total_count": len(results),
+    }
+
 async def run_evaluation(
     evaluation_type: EvaluationType,
     search_provider_params: Dict[str, Dict[str, Any]],
@@ -283,13 +355,21 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
                         handler,
                         examples[provider_name],
                         environment="test",
+                    )
+                elif evaluation_type == EvaluationType.LITSEARCH:
+                    task = evaluate_provider_litsearch(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        output_dir,
+                        evaluation_type,
                     )
                 tasks.append(task)
             
@@ -316,6 +396,14 @@ async def run_evaluation(
                         handler,
                         examples[provider_name],
                         environment="test",
+                    )
+                elif evaluation_type == EvaluationType.LITSEARCH:
+                    result = await evaluate_provider_litsearch(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        output_dir,
+                        evaluation_type,
                     )
                 provider_results[provider_name] = result
         
@@ -361,6 +449,8 @@ async def run_evaluation(
                 print(f"{provider_name}: {result['accuracy']:.2%} ({result['correct_count']}/{result['total_count']})")
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 print(f"{provider_name}: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
+            elif evaluation_type == EvaluationType.LITSEARCH:
+                print(f"{provider_name}: {result['mean_recall']:.2%} recall ({result['total_count']} queries)")
         print("=============================\n")
         
         return provider_results
@@ -370,7 +460,7 @@ async def run_evaluation(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run benchmark evaluation using specified evaluation type")
-    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value], help="Type of evaluation to run (simpleqa or document_relevance)")
+    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value, EvaluationType.LITSEARCH.value], help="Type of evaluation to run (simpleqa, document_relevance, or litsearch)")
     parser.add_argument("--config", default="configs/config.json", type=str, help="Path to JSON config file with provider parameters")
     parser.add_argument("--start_index", type=int, default=0, help="Starting index for examples (inclusive)")
     parser.add_argument("--end_index", type=int, default=None, help="Ending index for examples (exclusive)")
