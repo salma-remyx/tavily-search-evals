@@ -55,7 +55,14 @@ observed_landing_zones:
       \ the main runner loop (run_evaluation.py:304/330), which asyn"
     branch: llm-as-a-verifier-a-general-purpose-verification-framework
     timestamp: '2026-07-16T11:21:09Z'
-  last_observed: '2026-07-16T11:21:09Z'
+  - arxiv: 2407.18940v2
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation.py CLI dispatch \u2014 `run_evaluation()`\
+      \ routes EvaluationType.LITSEARCH to `evaluate_provider_litsearch` (both the\
+      \ asyncio.gather concurrent branch and the sequential fallback branch), inv"
+    branch: litsearch-a-retrieval-benchmark-for-scientific-literature-se
+    timestamp: '2026-07-25T21:15:47Z'
+  last_observed: '2026-07-25T21:15:47Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -77,4 +84,4 @@ observed_landing_zones:
   last_observed: '2026-07-18T02:22:59Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-18T02:22:59Z'
+last_updated: '2026-07-25T21:15:47Z'
