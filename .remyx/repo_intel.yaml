@@ -62,7 +62,12 @@ observed_landing_zones:
       \ asyncio.gather concurrent branch and the sequential fallback branch), inv"
     branch: litsearch-a-retrieval-benchmark-for-scientific-literature-se
     timestamp: '2026-07-25T21:15:47Z'
-  last_observed: '2026-07-25T21:15:47Z'
+  - arxiv: 2607.13920v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: (none)
+    branch: deepstress-stress-testing-deep-search-agents
+    timestamp: '2026-07-26T12:32:06Z'
+  last_observed: '2026-07-26T12:32:06Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -84,4 +89,4 @@ observed_landing_zones:
   last_observed: '2026-07-18T02:22:59Z'
 rejected_shapes: []
 coordination_signals: []
-last_updated: '2026-07-25T21:15:47Z'
+last_updated: '2026-07-26T12:32:06Z'
