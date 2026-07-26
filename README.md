@@ -202,3 +202,19 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Document Relevance Stress Benchmark** (adapted from DeepStress)
+
+Extends the Document Relevance benchmark from a static relevance score into a **robustness measurement**. Following [DeepStress: Stress-Testing Deep Search Agents](https://arxiv.org/abs/2607.13920v1), it injects controlled frequencies of poor-quality evidence into the retrieved document set along three dimensions — relevance, trustworthiness, and factuality — and measures how the relevance signal degrades as the frequency of challenging evidence rises.
+
+- **Mode 2 (adapted port):** the controlled-frequency injection and the three evidence dimensions are kept at full fidelity. The learned (QuotientAI) relevance judgment is replaced by a parameter-free vocabulary-overlap relevance proxy (`utils/evidence_stress.py`), so the stress measurement runs end-to-end without search API keys.
+- **Run:**
+    ```sh
+    python stress_eval.py --sample 50
+    python stress_eval.py --noise_ratios 0.0,0.2,0.4 --dimensions relevance factuality
+    ```
+- **Output:** a robustness curve (`baseline_relevant_pct`, `stress_relevant_pct`, `degradation_pp`, `robustness`) written to `results/document_relevance_stress/<timestamp>/summary.csv`.
+
+> Note: because a topical relevance proxy cannot see trustworthiness or factuality defects, on-topic distractors along those axes can pass the filter — the very gap DeepStress exposes. Run with `--dimensions relevance` for a clean monotonic degradation curve, or with all three to surface that gap.
