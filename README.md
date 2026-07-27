@@ -202,3 +202,23 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Meta-Evaluating the Correctness Judge (GroUSE)**
+
+SimpleQA accuracy is only as trustworthy as the `CorrectnessEvaluator` judge that grades it. `evaluators/grouse_meta_eval.py` audits that judge the way unit tests audit code: it presents grounded-QA answers that have been deliberately corrupted to exhibit one of seven generator failure modes (misinformation, incomplete information, unanswered question, extra information, wrong causality, wrong object of comparison, wrong quantity) and reports whether the judge **accepts the clean answer** (calibration) and **rejects each corrupted one** (per-failure-mode discrimination). Systematic misses pin down exactly where the judge is weak — for example, a correctness-only judge typically fails to penalise answers padded with irrelevant but true *extra information*.
+
+Adapted from *GroUSE: A Benchmark to Evaluate Evaluators in Grounded Question Answering* (Bavaresco et al., arXiv:2409.06595). The seven-failure-mode taxonomy and planted-corruption audit follow GroUSE; the 144-scenario dataset is substituted with a native unit-test suite plus optional generative corruption over the repo's own SimpleQA data, and GroUSE's six-metric judge is substituted with this repo's binary `CorrectnessEvaluator`.
+
+Run it against the default judge:
+
+```sh
+python -m evaluators.grouse_meta_eval --model gpt-4.1
+```
+
+Extend the probe set with planted corruptions derived from a SimpleQA-style CSV, and persist the per-test report:
+
+```sh
+python -m evaluators.grouse_meta_eval --from-csv datasets/simple_qa_test_set.csv --limit 20 --output-csv results/grouse_report.csv
+```
