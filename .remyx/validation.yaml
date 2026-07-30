@@ -1,0 +1,15 @@
+benchmarks:
+  - suite: "eval/eval_retrieval_quality.py"
+    scorer: erag_correctness_rate
+    baseline: main
+    metrics:
+      - name: erag_correctness_rate
+        direction: maximize
+        threshold: 0.9
+        role: target
+      - name: wiring_labels_match
+        direction: maximize
+        threshold: 1.0
+        role: guardrail
+    policy:
+      guardrail_veto: true
