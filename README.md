@@ -202,3 +202,19 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Search-Efficiency Scoring (Pareto AUC)**
+
+Beyond final accuracy, it helps to know how *cheaply* a provider reaches its quality. `utils/search_efficiency.py` scores a completed run's provider set by the **area under the quality-vs-cost Pareto frontier**: each provider becomes a `(mean-tokens-per-query, quality)` point, the non-dominated providers form the frontier, and the normalized frontier is integrated into a single efficiency score in `[0, 1]`. A set that reaches high quality at low token cost scores near 1.0; one that spends many tokens for little quality scores low. This is adapted from *Efficiency Matters in Autonomous Research* (arXiv:2607.24647), which argues systems should be judged by search efficiency (Pareto-frontier AUC) alongside final outcome quality rather than by outcome quality alone.
+
+Run it against any results directory that already contains per-provider `*_results.csv` files (SimpleQA quality is read from the `is_correct` column; the document-relevance benchmark reads `relevant_docs_percentage` from `summary.csv`):
+
+```sh
+python -m utils.search_efficiency results/simpleqa/2025-01-15_14-30-25
+# or, for the document-relevance benchmark:
+python -m utils.search_efficiency results/document_relevance/2025-01-15_15-45-12 --evaluation_type document_relevance
+```
+
+This writes `efficiency_report.csv` (per-provider `quality`, `cost`, `on_pareto_frontier`, and `efficiency_rank`, where rank 1 is the cheapest non-dominated provider) alongside the existing `summary.csv`.
