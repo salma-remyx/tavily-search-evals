@@ -67,7 +67,12 @@ observed_landing_zones:
     call_site_specifics: (none)
     branch: deepstress-stress-testing-deep-search-agents
     timestamp: '2026-07-26T12:32:06Z'
-  last_observed: '2026-07-26T12:32:06Z'
+  - arxiv: 2607.24647v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: (none)
+    branch: efficiency-matters-in-autonomous-research
+    timestamp: '2026-07-30T00:35:40Z'
+  last_observed: '2026-07-30T00:35:40Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -100,4 +105,4 @@ rejected_shapes:
   - arxiv: 2607.14673v1
     timestamp: '2026-07-28T17:36:22Z'
 coordination_signals: []
-last_updated: '2026-07-28T17:36:22Z'
+last_updated: '2026-07-30T00:35:40Z'
