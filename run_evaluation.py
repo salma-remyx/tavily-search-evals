@@ -8,6 +8,10 @@ import time
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
+from evaluators.required_coverage_evaluator import (
+    RequiredCoverageConfig,
+    RequiredCoverageEvaluator,
+)
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
@@ -74,15 +78,17 @@ async def evaluate_provider_simple_qa(
     post_processor: Optional[PostProcessor] = None,
     evaluator_model: str = "gpt-4.1",
     batch_size: int = 3,
+    coverage_evaluator: Optional[RequiredCoverageEvaluator] = None,
 ):
     """Evaluate a single search provider on the dataset."""
     evaluator = CorrectnessEvaluator(CorrectnessConfig(model_name=evaluator_model))
-    
+
     results = []
     correct_count = 0
-    
+
     async def process_example(example):
         nonlocal correct_count
+        nonlocal coverage_evaluator
         
         query = example["question"]
         reference_answer = example["answer"]
@@ -126,6 +132,27 @@ async def evaluate_provider_simple_qa(
                 "token_count": token_count if not is_llm_response else 0,
                 "token_avg": token_avg if not is_llm_response else 0
             }
+
+            # Optional multi-faceted required-element coverage scoring. Only
+            # runs for examples that declare required_elements, leaving the
+            # standard SimpleQA path unchanged otherwise.
+            required_elements = example.get("required_elements")
+            if required_elements:
+                if coverage_evaluator is None:
+                    coverage_evaluator = RequiredCoverageEvaluator(
+                        RequiredCoverageConfig(model_name=evaluator_model)
+                    )
+                coverage_result = await coverage_evaluator.evaluate(
+                    {
+                        "question": query,
+                        "required_elements": required_elements,
+                        "retrieved_context": answer,
+                    },
+                    {"answer": answer},
+                )
+                result["required_coverage"] = coverage_result["score"]
+                result["coverage_label"] = coverage_result["value"]
+                result["missing_elements"] = coverage_result["missing"]
 
             results.append(result)
             logger.info(f"[{provider_name}] Q{index}: Grade - {grade}, Query: '{query}'")

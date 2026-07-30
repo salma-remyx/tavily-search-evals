@@ -1,2 +1,3 @@
 from .correctness_evaluator import CorrectnessEvaluator
-all = [CorrectnessEvaluator]
+from .required_coverage_evaluator import RequiredCoverageEvaluator
+all = [CorrectnessEvaluator, RequiredCoverageEvaluator]

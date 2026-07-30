@@ -202,3 +202,23 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Required-Element Coverage Evaluator**
+
+A multi-faceted relevance judge, adapted from *Evaluating RAG for French immigration law: a benchmark and baseline study*. Where the SimpleQA benchmark grades an answer with a single CORRECT / INCORRECT verdict, this evaluator decomposes relevance into the **required elements** a question demands (key entities, required document types, or citations) and reports, per question:
+
+- `required_coverage` — fraction of required elements the predicted answer + retrieved context actually surface (`0.0`–`1.0`)
+- `coverage_label` — `FULLY_COVERED`, `PARTIALLY_COVERED`, or `NOT_COVERED`
+- `missing_elements` — the specific elements a provider failed to retrieve
+
+It uses the same LLM-as-judge pattern as the correctness evaluator (`gpt-4.1` by default) and plugs into the existing SimpleQA loop without introducing a new pipeline shape. It activates only for dataset examples that carry a `required_elements` field, so standard SimpleQA runs are unchanged. A SimpleQA example opting into coverage looks like:
+
+```json
+{
+  "question": "Which permit and documents do I need to hire abroad?",
+  "answer": "Passeport Talent",
+  "required_elements": ["permit type", "passport copy"]
+}
+```
