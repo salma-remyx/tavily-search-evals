@@ -103,7 +103,12 @@ observed_landing_zones:
       entry point; coverage activates inside process_example for a
     branch: evaluating-rag-for-french-immigration-law-a-benchmark-and-ba
     timestamp: '2026-07-30T17:19:23Z'
-  last_observed: '2026-07-30T17:19:23Z'
+  - arxiv: 2607.24663v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: (none)
+    branch: a-corrective-agentic-hybrid-rag-and-an-operations-grounded-e
+    timestamp: '2026-07-31T07:46:43Z'
+  last_observed: '2026-07-31T07:46:43Z'
 rejected_shapes:
 - shape_tag: null
   reason_code: null
@@ -112,4 +117,4 @@ rejected_shapes:
   - arxiv: 2607.14673v1
     timestamp: '2026-07-28T17:36:22Z'
 coordination_signals: []
-last_updated: '2026-07-30T17:19:23Z'
+last_updated: '2026-07-31T07:46:43Z'
