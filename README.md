@@ -202,3 +202,33 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Vital-Nugget Recall (Answer-Granularity Metric)**
+
+Alongside the binary SimpleQA grade (CORRECT / INCORRECT / NOT_ATTEMPTED), the framework can score **vital-nugget recall** over a predicted answer. The gold answer is decomposed into atomic "vital nuggets", and recall measures the fraction of those nuggets the predicted answer actually covers; **strict vital recall** is `1.0` only when every nugget is covered.
+
+This is especially useful for RAG-assisted QA setups, where a search provider's retrieved documents feed an LLM that synthesizes the final answer: vital-nugget recall shows *which* pieces of the gold answer the retrieval + synthesis pipeline surfaced, instead of collapsing to a single verdict. It complements the Document Relevance benchmark (which scores retrieved documents) by scoring the answer those documents produced.
+
+Usage:
+
+```python
+from evaluators.vital_nugget_recall import VitalNuggetRecallEvaluator, score_result_row
+
+# Same (inputs, outputs, reference_outputs) contract as CorrectnessEvaluator.
+evaluator = VitalNuggetRecallEvaluator()  # offline, deterministic default
+result = await evaluator.evaluate(
+    inputs={"question": "Who are Obama's children?"},
+    outputs={"answer": "Sasha and Malia Obama"},
+    reference_outputs={"answer": "Malia Obama and Sasha Obama"},
+)
+# result -> {"score": 1.0, "value": "FULL_COVERAGE", "strict_recall": 1.0, ...}
+
+# Or score already-saved SimpleQA result rows without re-running any provider.
+score_result_row({"reference_answer": "...", "predicted_answer": "..."})
+```
+
+Nugget extraction and coverage default to deterministic, parameter-free heuristics (no API key required); pass `use_llm=True` to extract nuggets with an LLM for higher fidelity.
+
+Adapted from the operations-grounded evaluation in APS-RAG / APS-Bench ("A corrective agentic hybrid RAG and an operations-grounded evaluation for a scientific facility", arXiv:2607.24663). The paper's vital-nugget recall metric is ported at full fidelity; the paper's full hybrid RAG platform (dense + sparse + knowledge-graph fusion, corrective agentic loop, MCP tooling, cross-encoder reranker) is out of scope for this search-API evaluation harness.
