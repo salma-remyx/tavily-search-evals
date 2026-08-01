@@ -109,6 +109,18 @@ observed_landing_zones:
     branch: a-corrective-agentic-hybrid-rag-and-an-operations-grounded-e
     timestamp: '2026-07-31T07:46:43Z'
   last_observed: '2026-07-31T07:46:43Z'
+- path: datasets/
+  shape_tags:
+  - unclassified
+  confirmed_by:
+  - arxiv: 2508.20033v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation.py CLI entry point \u2014 the pre-existing\
+      \ run_evaluation() function dispatches to evaluate_provider_source_recall in\
+      \ its new SOURCE_RECALL branch (both concurrent and sequential paths), exp"
+    branch: deepscholar-bench-a-live-benchmark-and-automated-evaluation-
+    timestamp: '2026-08-01T14:05:53Z'
+  last_observed: '2026-08-01T14:05:53Z'
 rejected_shapes:
 - shape_tag: null
   reason_code: null
@@ -117,4 +129,4 @@ rejected_shapes:
   - arxiv: 2607.14673v1
     timestamp: '2026-07-28T17:36:22Z'
 coordination_signals: []
-last_updated: '2026-07-31T07:46:43Z'
+last_updated: '2026-08-01T14:05:53Z'
