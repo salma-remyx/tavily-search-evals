@@ -13,6 +13,12 @@ This repository provides evaluation frameworks for benchmarking web search APIs,
     - Involves generating a dynamic dataset using the open-source [Dynamic Eval Datasets Generator](https://github.com/Eyalbenba/tavily-web-eval-generator).
     - You can use the provided dataset (`datasets/document_relevance_dynamic_test_set.json`) or easily create new datasets on topics of your choice with the above generator.
     - This flexibility allows evaluation on domain-specific or real-time topics, making the benchmark more reflective of production-like tasks than static datasets.
+3. Source Recall Benchmark
+    - Measures whether each provider retrieves a query's ground-truth *sources* — source recall@k and precision@k against a human-curated gold source set per query.
+    - Complements SimpleQA (answer correctness) and document relevance (per-doc relevance) by scoring retrieval *coverage*: does the provider surface the citations a research-synthesis system would need?
+    - Uses a dataset of research questions paired with gold source URLs (`datasets/source_recall_test_set.json`); extend it with your own question + gold-source pairs.
+    - Run with `python run_evaluation.py --evaluation_type source_recall`.
+    - Adapted from [DeepScholar-Bench](https://arxiv.org/abs/2508.20033).
 
 ### **Features**
 - Comparative evaluation of multiple search providers

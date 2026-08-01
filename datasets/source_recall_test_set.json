@@ -1,0 +1,43 @@
+{
+  "dataset": [
+    {
+      "question": "What neural network architecture did the 'Attention Is All You Need' paper introduce?",
+      "gold_sources": [
+        "https://arxiv.org/abs/1706.03762",
+        "https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)"
+      ]
+    },
+    {
+      "question": "What is BERT and how is it pretrained?",
+      "gold_sources": [
+        "https://arxiv.org/abs/1810.04805",
+        "https://en.wikipedia.org/wiki/BERT_(language_model)"
+      ]
+    },
+    {
+      "question": "How many parameters does the largest GPT-3 model have, and what does the paper report?",
+      "gold_sources": [
+        "https://arxiv.org/abs/2005.14165"
+      ]
+    },
+    {
+      "question": "What is retrieval-augmented generation (RAG)?",
+      "gold_sources": [
+        "https://arxiv.org/abs/2005.11401",
+        "https://en.wikipedia.org/wiki/Retrieval-augmented_generation"
+      ]
+    },
+    {
+      "question": "What optimization algorithm does the 'Adam' paper propose?",
+      "gold_sources": [
+        "https://arxiv.org/abs/1412.6980"
+      ]
+    },
+    {
+      "question": "What is the PageRank algorithm and who developed it?",
+      "gold_sources": [
+        "https://en.wikipedia.org/wiki/PageRank"
+      ]
+    }
+  ]
+}

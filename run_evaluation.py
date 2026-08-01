@@ -8,6 +8,7 @@ import time
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
+from evaluators.source_recall_evaluator import evaluate_provider_source_recall, load_source_recall_eval_data
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
@@ -36,16 +37,20 @@ def get_dataset_path(evaluation_type: EvaluationType) -> str:
         return "datasets/document_relevance_dynamic_test_set.json"
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return "datasets/simple_qa_test_set.csv"
+    elif evaluation_type == EvaluationType.SOURCE_RECALL:
+        return "datasets/source_recall_test_set.json"
 
 
 def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: Optional[int] = None, random_sample: Optional[int] = None):
     """Load data based on evaluation type."""
     dataset_path = get_dataset_path(evaluation_type)
-    
+
     if evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         return load_document_relevance_eval_data(dataset_path, start_index, end_index, random_sample)
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return load_csv_data(dataset_path, start_index, end_index, random_sample)
+    elif evaluation_type == EvaluationType.SOURCE_RECALL:
+        return load_source_recall_eval_data(dataset_path, start_index, end_index, random_sample)
 
 
 async def get_search_handlers(search_provider_params: Dict[str, Dict[str, Any]], token_model: str = "gpt-4.1"):
@@ -283,13 +288,20 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
                         handler,
                         examples[provider_name],
                         environment="test",
+                    )
+                elif evaluation_type == EvaluationType.SOURCE_RECALL:
+                    task = evaluate_provider_source_recall(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        output_dir,
                     )
                 tasks.append(task)
             
@@ -316,6 +328,13 @@ async def run_evaluation(
                         handler,
                         examples[provider_name],
                         environment="test",
+                    )
+                elif evaluation_type == EvaluationType.SOURCE_RECALL:
+                    result = await evaluate_provider_source_recall(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        output_dir,
                     )
                 provider_results[provider_name] = result
         
@@ -361,6 +380,8 @@ async def run_evaluation(
                 print(f"{provider_name}: {result['accuracy']:.2%} ({result['correct_count']}/{result['total_count']})")
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 print(f"{provider_name}: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
+            elif evaluation_type == EvaluationType.SOURCE_RECALL:
+                print(f"{provider_name}: recall={result['mean_recall']:.1%} hit_rate={result['hit_rate']:.1%} ({result['matched_sources']}/{result['total_gold_sources']} sources)")
         print("=============================\n")
         
         return provider_results
@@ -370,7 +391,7 @@ async def run_evaluation(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run benchmark evaluation using specified evaluation type")
-    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value], help="Type of evaluation to run (simpleqa or document_relevance)")
+    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value, EvaluationType.SOURCE_RECALL.value], help="Type of evaluation to run (simpleqa, document_relevance, or source_recall)")
     parser.add_argument("--config", default="configs/config.json", type=str, help="Path to JSON config file with provider parameters")
     parser.add_argument("--start_index", type=int, default=0, help="Starting index for examples (inclusive)")
     parser.add_argument("--end_index", type=int, default=None, help="Ending index for examples (exclusive)")

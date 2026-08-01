@@ -16,6 +16,7 @@ import shutil
 class EvaluationType(Enum):
     DOCUMENT_RELEVANCE = "document_relevance"
     SIMPLEQA = "simpleqa"
+    SOURCE_RECALL = "source_recall"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -42,6 +43,8 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
             fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
+        elif evaluation_type == EvaluationType.SOURCE_RECALL:
+            fieldnames = ['provider', 'mean_recall', 'mean_precision', 'hit_rate', 'matched_sources', 'total_gold_sources', 'total_count', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -74,6 +77,20 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                     'relevant_docs_count': provider_metrics.get('relevant_docs', 0),
                     'total_docs_count': provider_metrics.get('total_docs', 0),
                     'app_name': provider_metrics.get('app_name', ''),
+                    'timestamp': timestamp
+                })
+            elif evaluation_type == EvaluationType.SOURCE_RECALL:
+                # Source-recall aggregates are computed in memory by the runner
+                # and carried in provider_results, like document relevance.
+                provider_metrics = provider_results.get(provider_name, {})
+                writer.writerow({
+                    'provider': provider_name,
+                    'mean_recall': provider_metrics.get('mean_recall', 0.0),
+                    'mean_precision': provider_metrics.get('mean_precision', 0.0),
+                    'hit_rate': provider_metrics.get('hit_rate', 0.0),
+                    'matched_sources': provider_metrics.get('matched_sources', 0),
+                    'total_gold_sources': provider_metrics.get('total_gold_sources', 0),
+                    'total_count': provider_metrics.get('total_count', 0),
                     'timestamp': timestamp
                 })
 
@@ -149,14 +166,23 @@ def prepare_examples(
 ) -> Dict[str, List[Dict]]:
     examples = {provider: [] for provider in provider_names}
 
+    # Forward any dataset columns beyond the core problem/answer/index so
+    # type-specific evaluators receive their fields (e.g. gold_sources for
+    # source-recall). Core types carry no extra columns, so behavior is
+    # unchanged for SimpleQA / document relevance.
+    extra_cols = [c for c in df.columns if c not in ("problem", "answer", "index")]
+
     for provider in provider_names:
         if not rerun or (random_sample is not None and random_sample > 0) or not os.path.exists(f"{results_dir}/{provider}_{evaluation_type.value}_results.csv"):
             for _, row in df.iterrows():
-                examples[provider].append({
+                example = {
                     "question": row["problem"],
                     "answer": row["answer"],
                     "index": int(row["index"])
-                })
+                }
+                for col in extra_cols:
+                    example[col] = row[col]
+                examples[provider].append(example)
         else:
             results_file = f"{results_dir}/{provider}_{evaluation_type.value}_results.csv"
             if os.path.exists(results_file):
@@ -170,11 +196,14 @@ def prepare_examples(
             logger.info(f"[{provider}] Removed {len(processed_indices)} already processed examples")
 
             for _, row in provider_df.iterrows():
-                examples[provider].append({
+                example = {
                     "question": row["problem"],
                     "answer": row["answer"],
                     "index": int(row["index"])
-                })
+                }
+                for col in extra_cols:
+                    example[col] = row[col]
+                examples[provider].append(example)
 
             logger.info(f"[{provider}] Loaded {len(examples[provider])} examples")
 
@@ -205,6 +234,8 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
         fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
+    elif evaluation_type == EvaluationType.SOURCE_RECALL:
+        fieldnames = ['index', 'question', 'gold_count', 'matched_count', 'recall', 'precision', 'hit', 'retrieved_count', 'grade']
 
     file_exists = os.path.exists(f"{output_dir}/{provider_name}_{evaluation_type.value}_results.csv")
     write_mode = 'a' if file_exists else 'w'
