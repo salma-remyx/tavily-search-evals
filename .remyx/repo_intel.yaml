@@ -72,7 +72,14 @@ observed_landing_zones:
     call_site_specifics: (none)
     branch: efficiency-matters-in-autonomous-research
     timestamp: '2026-07-30T00:35:40Z'
-  last_observed: '2026-07-30T00:35:40Z'
+  - arxiv: 2309.07382v2
+    mode: Mode 2 (adapted port)
+    call_site_specifics: PostProcessor.extract_answer (utils/post_processor.py), reached
+      from the pre-existing run_evaluation.py CLI (__main__ -> run_evaluation() ->
+      eval flow, which already calls extract_answer at run_evalua
+    branch: less-is-more-for-long-document-summary-evaluation-by-llms
+    timestamp: '2026-08-02T18:44:17Z'
+  last_observed: '2026-08-02T18:44:17Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -131,4 +138,4 @@ rejected_shapes:
   - arxiv: 2607.15257v1
     timestamp: '2026-08-02T04:21:50Z'
 coordination_signals: []
-last_updated: '2026-08-02T04:21:50Z'
+last_updated: '2026-08-02T18:44:17Z'
