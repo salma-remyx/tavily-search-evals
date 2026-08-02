@@ -92,6 +92,7 @@ python run_evaluation.py
 - `--rerun`: Continue evaluation on existing results directory, output_dir must exist
 - `--token_model`: Model for token consumption calculation (default: gpt-4.1)
 - `--evaluator_model`: Model for correctness evaluation for SimpleQA (default: gpt-4.1)
+- `--extract_sentences`: Top-N query-relevant sentences to keep per retrieved document before answer extraction, reducing prompt tokens and lost-in-the-middle (Extract-then-Evaluate); 0 disables (default: 0)
 
 ### **Output**
 

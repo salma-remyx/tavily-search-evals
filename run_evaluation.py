@@ -236,6 +236,7 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    extract_sentences_per_doc: int = 0,
 ):
     """Run the benchmark evaluation using specified evaluation type.
     
@@ -270,7 +271,10 @@ async def run_evaluation(
         copy_config_to_results(config_path, output_dir=output_dir)
         
         provider_results = {}
-        post_processor = PostProcessor(llm_model=post_process_model)
+        post_processor = PostProcessor(
+            llm_model=post_process_model,
+            extract_sentences_per_doc=extract_sentences_per_doc or None,
+        )
 
         if parallel:
             # Evaluate providers in parallel
@@ -381,7 +385,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
-    
+    parser.add_argument("--extract_sentences", type=int, default=0, help="Top-N query-relevant sentences to keep per retrieved document before answer extraction (Extract-then-Evaluate); 0 disables (default)")
+
     args = parser.parse_args()
     
     search_provider_params = {}
@@ -412,4 +417,5 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        extract_sentences_per_doc=args.extract_sentences,
     ))

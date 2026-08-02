@@ -1,5 +1,9 @@
 import logging
+from typing import Optional
+
 from langchain_openai import ChatOpenAI
+
+from utils.document_condenser import condense_search_results
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +13,8 @@ class PostProcessor(object):
     def __init__(
             self,
             llm_model: str = "gpt-4.1",
-            temperature: float = 0.0
+            temperature: float = 0.0,
+            extract_sentences_per_doc: Optional[int] = None,
     ):
         """
         Initialize the PostProcessor class.
@@ -17,8 +22,13 @@ class PostProcessor(object):
         Args:
             llm_model: Model to use for answer extraction
             temperature: Temperature for LLM calls
+            extract_sentences_per_doc: When set, reduce each retrieved document
+                to its top-N query-relevant sentences before building the
+                extraction prompt (Extract-then-Evaluate, arXiv:2309.07382),
+                curbing Lost-in-the-Middle and prompt cost. None disables it.
         """
         self.llm = ChatOpenAI(model=llm_model, temperature=temperature)
+        self.extract_sentences_per_doc = extract_sentences_per_doc
 
     def _get_prompt(self, is_llm_response: bool) -> str:
         if is_llm_response:
@@ -71,6 +81,13 @@ class PostProcessor(object):
             str: A concise, focused answer extracted from the LLM response
         """
         logger.info(f"Extracting answer for query: {query}")
+
+        if self.extract_sentences_per_doc and not is_llm_response and search_result:
+            search_result = condense_search_results(
+                query=query,
+                search_results=search_result,
+                max_sentences_per_doc=self.extract_sentences_per_doc,
+            )
 
         prompt = self._get_prompt(is_llm_response).format(
             query, search_result
