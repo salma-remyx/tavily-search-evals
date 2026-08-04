@@ -79,7 +79,12 @@ observed_landing_zones:
       eval flow, which already calls extract_answer at run_evalua
     branch: less-is-more-for-long-document-summary-evaluation-by-llms
     timestamp: '2026-08-02T18:44:17Z'
-  last_observed: '2026-08-02T18:44:17Z'
+  - arxiv: 2608.02372v1
+    mode: ''
+    call_site_specifics: ''
+    branch: predact-bench-benchmarking-tool-augmented-dialogue-under-con
+    timestamp: '2026-08-04T18:52:28Z'
+  last_observed: '2026-08-04T18:52:28Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -138,4 +143,4 @@ rejected_shapes:
   - arxiv: 2607.15257v1
     timestamp: '2026-08-02T04:21:50Z'
 coordination_signals: []
-last_updated: '2026-08-02T18:44:17Z'
+last_updated: '2026-08-04T18:52:28Z'
