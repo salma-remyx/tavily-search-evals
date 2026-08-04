@@ -202,3 +202,15 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Retrieval Noise Robustness**
+
+In real deployments the documents a search API returns are imperfect, yet the benchmarks above assume clean tool output. `utils/retrieval_noise_injector.py` adds a controlled "retrieval noise" axis on top of the existing SimpleQA accuracy number, adapted from PredAct-Bench (tool-augmented evaluation under controlled tool noise).
+
+- A `RetrievalNoiseInjector` perturbs a handler's retrieved/answer text by a configurable amount (`noise_ratio`) using one of four modes: `truncate` (lost key info), `drop` (missing documents), `shuffle` (scrambled order), or `inject_irrelevant` (off-topic documents).
+- `measure_noise_degradation` re-grades the clean text and the noise-degraded copy with the existing `CorrectnessEvaluator` (via `make_correctness_grader`) and returns the score drop.
+- `evaluate_noise_robustness` runs the clean-vs-noisy comparison over a finished provider's results — same per-example shape the SimpleQA pipeline already emits (`question` / `predicted_answer` / `reference_answer`) — reporting `clean_accuracy`, `noisy_accuracy`, and `accuracy_drop` without re-issuing any search calls.
+
+PredAct-Bench's human-trust metrics (RAIR/RSR) and educational dialogue scaffolding are intentionally not ported; the reported signal is accuracy degradation, the repo-native grading path.
