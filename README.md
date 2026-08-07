@@ -202,3 +202,14 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Cost-of-Pass Metric (SimpleQA)**
+
+For SimpleQA evaluations, `summary.csv` additionally reports the **cost-of-pass**: the expected USD cost of producing one correct answer.
+
+- `total_tokens` — total retrieved-content tokens logged for the provider across the run.
+- `cost_of_pass` — `per-attempt inference cost / accuracy`, which reduces to `(total_tokens * price_per_token) / correct_count`. A provider that answers nothing correctly reports `inf`.
+
+The token price is taken from a small price table keyed by `--token_model` (default `gpt-4.1`). The cheapest provider on this metric is logged as the frontier cost-of-pass winner — adapted from *Cost-of-Pass: An Economic Framework for Evaluating Language Models* (arXiv:2504.13359).

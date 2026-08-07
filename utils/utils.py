@@ -11,6 +11,8 @@ import random
 import uuid
 import shutil
 
+from .cost_of_pass import cost_of_pass, frontier_cost_of_pass
+
 
 
 class EvaluationType(Enum):
@@ -26,42 +28,61 @@ if not logger.handlers:
     logger.addHandler(console_handler)
 
 
-def save_summary(provider_results: Dict, output_dir: str, evaluation_type: EvaluationType):
+def save_summary(provider_results: Dict, output_dir: str, evaluation_type: EvaluationType, token_model: str = "gpt-4.1"):
     """Save evaluation results to CSV files.
 
     Args:
         provider_results: Dictionary of provider results
         output_dir: Directory to save results
         evaluation_type: Type of evaluation
+        token_model: Model name used for token-cost pricing (SimpleQA cost-of-pass)
     """
     os.makedirs(output_dir, exist_ok=True)
     summary_file = f"{output_dir}/summary.csv"
 
     with open(summary_file, 'w', newline='') as csvfile:
         if evaluation_type == EvaluationType.SIMPLEQA:
-            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
+            fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'total_tokens', 'cost_of_pass', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cost_of_pass_by_provider = {}
 
         for provider_name, result in provider_results.items():
             output_file = f"{output_dir}/{provider_name}_{evaluation_type.value}_results.csv"
             provider_full_results = pd.read_csv(output_file)
             examples_count = len(provider_full_results)
-            
+
             if evaluation_type == EvaluationType.SIMPLEQA:
                 correct_count = len(provider_full_results[provider_full_results['is_correct'] == True])
                 accuracy = correct_count / examples_count if examples_count > 0 else 0.0
                 accuracy = round(accuracy, 3)
+
+                # Cost-of-pass: expected USD per correct answer (arXiv:2504.13359).
+                # Retrieved-content tokens are the dominant inference-cost driver in
+                # search-augmented QA and are logged per example above.
+                if 'token_count' in provider_full_results.columns:
+                    total_tokens = int(pd.to_numeric(
+                        provider_full_results['token_count'], errors='coerce'
+                    ).fillna(0).sum())
+                else:
+                    total_tokens = 0
+                cop = cost_of_pass(
+                    total_tokens, examples_count, correct_count, model=token_model
+                )
+                cop = round(cop, 6) if cop != float('inf') else cop
+                cost_of_pass_by_provider[provider_name] = cop
 
                 writer.writerow({
                 'provider': provider_name,
                 'accuracy': accuracy,
                 'correct_count': correct_count,
                 'total_count': examples_count,
+                'total_tokens': total_tokens,
+                'cost_of_pass': cop,
                 'timestamp': timestamp
             })
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
@@ -76,6 +97,16 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                     'app_name': provider_metrics.get('app_name', ''),
                     'timestamp': timestamp
                 })
+
+        # Frontier cost-of-pass (arXiv:2504.13359): cheapest correct answer
+        # across providers. Only meaningful for the SimpleQA accuracy path.
+        if evaluation_type == EvaluationType.SIMPLEQA and cost_of_pass_by_provider:
+            frontier_provider, frontier_cost = frontier_cost_of_pass(cost_of_pass_by_provider)
+            if frontier_provider is not None:
+                logger.info(
+                    f"Frontier cost-of-pass: {frontier_provider} at "
+                    f"${frontier_cost:.6f}/correct answer"
+                )
 
     logger.info(f"Saved summary results to {summary_file}")
 

@@ -350,7 +350,7 @@ async def run_evaluation(
                     logger.info(f"[{provider_name}] Relevance stats: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
                     
 
-        save_summary(provider_results, output_dir, evaluation_type)
+        save_summary(provider_results, output_dir, evaluation_type, token_model=token_model)
 
         print("\n===== EVALUATION RESULTS =====")
         print(f"Evaluation Type: {evaluation_type}")
