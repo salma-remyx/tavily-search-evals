@@ -8,6 +8,7 @@ import time
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from evaluators.correctness_evaluator import CorrectnessConfig
+from evaluators.answer_matching_evaluator import AnswerMatchingConfig, AnswerMatchingEvaluator
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
@@ -74,15 +75,25 @@ async def evaluate_provider_simple_qa(
     post_processor: Optional[PostProcessor] = None,
     evaluator_model: str = "gpt-4.1",
     batch_size: int = 3,
+    triangulate: bool = False,
 ):
     """Evaluate a single search provider on the dataset."""
     evaluator = CorrectnessEvaluator(CorrectnessConfig(model_name=evaluator_model))
-    
+    # Optional second judge (binary answer-matching) that triangulates the lone
+    # A/B/C correctness judge. Off by default to preserve the existing pipeline.
+    answer_matcher = (
+        AnswerMatchingEvaluator(AnswerMatchingConfig(model_name=evaluator_model))
+        if triangulate
+        else None
+    )
+
     results = []
     correct_count = 0
-    
+    agree_count = 0
+
     async def process_example(example):
         nonlocal correct_count
+        nonlocal agree_count
         
         query = example["question"]
         reference_answer = example["answer"]
@@ -116,6 +127,21 @@ async def evaluate_provider_simple_qa(
                 correct_count += 1
 
             grade = evaluation_result['value']
+
+            # Triangulate the correctness judge with the answer-matching judge.
+            answer_match = None
+            judges_agree = None
+            if answer_matcher is not None:
+                answer_match_result = await answer_matcher.evaluate(
+                    {"question": query},
+                    {"answer": answer},
+                    {"answer": reference_answer}
+                )
+                answer_match = answer_match_result['value']
+                judges_agree = is_correct == (answer_match_result['score'] == 1.0)
+                if judges_agree:
+                    agree_count += 1
+
             result = {
                 "index": index,
                 "question": query,
@@ -123,12 +149,15 @@ async def evaluate_provider_simple_qa(
                 "predicted_answer": answer,
                 "is_correct": is_correct,
                 "grade": grade,
+                "answer_match": answer_match,
+                "judges_agree": judges_agree,
                 "token_count": token_count if not is_llm_response else 0,
                 "token_avg": token_avg if not is_llm_response else 0
             }
 
             results.append(result)
-            logger.info(f"[{provider_name}] Q{index}: Grade - {grade}, Query: '{query}'")
+            judge_note = f", answer_match - {answer_match}, judges_agree - {judges_agree}" if answer_matcher is not None else ""
+            logger.info(f"[{provider_name}] Q{index}: Grade - {grade}{judge_note}, Query: '{query}'")
             save_result(result, provider_name, output_dir, evaluation_type)
 
             return result
@@ -156,13 +185,16 @@ async def evaluate_provider_simple_qa(
     accuracy = correct_count / len(examples) if examples else 0
     accuracy = round(accuracy, 3)
 
-    return {
+    summary = {
         "provider": provider_name,
         "results": results,
         "accuracy": accuracy,
         "correct_count": correct_count,
         "total_count": len(examples)
     }
+    if answer_matcher is not None and examples:
+        summary["judge_agreement_rate"] = round(agree_count / len(examples), 3)
+    return summary
 
 async def evaluate_provider_document_relevance(
     provider_name: str,
@@ -236,6 +268,7 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    triangulate: bool = False,
 ):
     """Run the benchmark evaluation using specified evaluation type.
     
@@ -283,7 +316,8 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                        triangulate=triangulate,
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
@@ -309,6 +343,7 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
+                        triangulate=triangulate,
                     )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     result = await evaluate_provider_document_relevance(
@@ -381,6 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
+    parser.add_argument("--triangulate", action="store_true", help="Add a binary answer-matching judge alongside the correctness judge (SimpleQA) and record judge agreement")
     
     args = parser.parse_args()
     
@@ -412,4 +448,5 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        triangulate=args.triangulate,
     ))
