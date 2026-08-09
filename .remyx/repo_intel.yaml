@@ -80,10 +80,12 @@ observed_landing_zones:
     branch: less-is-more-for-long-document-summary-evaluation-by-llms
     timestamp: '2026-08-02T18:44:17Z'
   - arxiv: 2608.02372v1
-    mode: ''
-    call_site_specifics: ''
-    branch: predact-bench-benchmarking-tool-augmented-dialogue-under-con
-    timestamp: '2026-08-04T18:52:28Z'
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_evaluation.py \u2014 the existing CLI entry point (`__main__`\
+      \ \u2192 argparse \u2192 `run_evaluation()` \u2192 `evaluate_provider_simple_qa()`),\
+      \ reached when the new `--noise_ratio > 0` flag is passed; `run_noisy_pas"
+    branch: predact-bench-benchmarking-tool-augmented-dialogue-under-con-v2
+    timestamp: '2026-08-09T01:18:50Z'
   - arxiv: 2504.13359v1
     mode: Mode 2 (adapted port)
     call_site_specifics: save_summary in utils/utils.py, invoked from run_evaluation()
@@ -91,7 +93,7 @@ observed_landing_zones:
       arg threaded in at run_evaluation.py:410)
     branch: cost-of-pass-an-economic-framework-for-evaluating-language-m
     timestamp: '2026-08-07T14:08:37Z'
-  last_observed: '2026-08-07T14:08:37Z'
+  last_observed: '2026-08-09T01:18:50Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -154,4 +156,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-08T06:35:16Z'
+last_updated: '2026-08-09T01:18:50Z'
