@@ -202,3 +202,28 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Noise-Robustness Scoring (optional)**
+
+*Noise-robustness scoring — adapted from [PredAct-Bench: Benchmarking Tool-Augmented Dialogue under Controlled Tool Noise](https://arxiv.org/abs/2608.02372).*
+
+SimpleQA accuracy is measured against clean search results. In production, search results are noisy, so a provider that scores well on clean inputs can degrade when retrieved content is imperfect. Noise-robustness scoring injects a controlled amount of degradation (content truncation, irrelevant-document injection, or document dropping) into each provider's retrieved documents, then re-runs answer extraction and correctness grading on the degraded context and reports how much of the clean accuracy survives.
+
+It is **off by default**; the existing SimpleQA pipeline is unchanged unless opted in. Enable it with:
+
+```sh
+python run_evaluation.py --evaluation_type simpleqa --noise_ratio 0.5 --noise_strategy truncate
+```
+
+- `--noise_ratio`: Fraction in `[0, 1]` of controlled noise to inject (`0` = off, default).
+- `--noise_strategy`: `truncate` (default), `inject`, `drop`, or a `+`-joined combination such as `truncate+inject`.
+
+For each provider the run additionally reports:
+- `noisy accuracy` — accuracy under the injected noise,
+- `robustness drop` — clean accuracy minus noisy accuracy,
+- `relative robustness` — the fraction of clean-correct answers that stay correct under noise (the repo analog of PredAct-Bench's Relative AI-Reliance, RAIR).
+
+Implementation lives in `utils/noise_robustness.py`; the per-example noisy re-grade is wired into `evaluate_provider_simple_qa` in `run_evaluation.py`.
+

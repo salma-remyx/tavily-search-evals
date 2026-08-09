@@ -13,6 +13,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils.noise_robustness import run_noisy_pass, compute_robustness
 
 load_dotenv()
 
@@ -74,6 +75,8 @@ async def evaluate_provider_simple_qa(
     post_processor: Optional[PostProcessor] = None,
     evaluator_model: str = "gpt-4.1",
     batch_size: int = 3,
+    noise_ratio: float = 0.0,
+    noise_strategy: str = "truncate",
 ):
     """Evaluate a single search provider on the dataset."""
     evaluator = CorrectnessEvaluator(CorrectnessConfig(model_name=evaluator_model))
@@ -115,6 +118,27 @@ async def evaluate_provider_simple_qa(
             if is_correct:
                 correct_count += 1
 
+            # Noise-robustness pass (adapted from PredAct-Bench, arxiv:2608.02372):
+            # re-grade the same example after injecting controlled tool noise
+            # into the retrieved documents. Off by default (noise_ratio == 0).
+            noisy_is_correct = None
+            if noise_ratio and noise_ratio > 0.0:
+                try:
+                    noisy_pass = await run_noisy_pass(
+                        query=query,
+                        search_ans=search_ans,
+                        is_llm_response=is_llm_response,
+                        post_processor=post_processor,
+                        evaluator=evaluator,
+                        reference_answer=reference_answer,
+                        noise_ratio=noise_ratio,
+                        strategy=noise_strategy,
+                        seed=index,
+                    )
+                    noisy_is_correct = noisy_pass["noisy_is_correct"]
+                except Exception as ne:
+                    logger.warning(f"[{provider_name}] Noise pass error for Q{index}: {str(ne)}")
+
             grade = evaluation_result['value']
             result = {
                 "index": index,
@@ -124,7 +148,8 @@ async def evaluate_provider_simple_qa(
                 "is_correct": is_correct,
                 "grade": grade,
                 "token_count": token_count if not is_llm_response else 0,
-                "token_avg": token_avg if not is_llm_response else 0
+                "token_avg": token_avg if not is_llm_response else 0,
+                "noisy_is_correct": noisy_is_correct,
             }
 
             results.append(result)
@@ -156,12 +181,18 @@ async def evaluate_provider_simple_qa(
     accuracy = correct_count / len(examples) if examples else 0
     accuracy = round(accuracy, 3)
 
+    robustness = compute_robustness(results) if (noise_ratio and noise_ratio > 0.0) else None
+
     return {
         "provider": provider_name,
         "results": results,
         "accuracy": accuracy,
         "correct_count": correct_count,
-        "total_count": len(examples)
+        "total_count": len(examples),
+        "noisy_accuracy": robustness["accuracy_noisy"] if robustness else None,
+        "robustness_drop": robustness["robustness_drop"] if robustness else None,
+        "relative_robustness": robustness["relative_robustness"] if robustness else None,
+        "flipped_to_incorrect": robustness["flipped_to_incorrect"] if robustness else None,
     }
 
 async def evaluate_provider_document_relevance(
@@ -236,6 +267,8 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    noise_ratio: float = 0.0,
+    noise_strategy: str = "truncate",
 ):
     """Run the benchmark evaluation using specified evaluation type.
     
@@ -283,7 +316,9 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                        noise_ratio=noise_ratio,
+                        noise_strategy=noise_strategy,
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
@@ -309,6 +344,8 @@ async def run_evaluation(
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
+                        noise_ratio=noise_ratio,
+                        noise_strategy=noise_strategy,
                     )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     result = await evaluate_provider_document_relevance(
@@ -359,6 +396,8 @@ async def run_evaluation(
         for provider_name, result in provider_results.items():
             if evaluation_type == EvaluationType.SIMPLEQA:
                 print(f"{provider_name}: {result['accuracy']:.2%} ({result['correct_count']}/{result['total_count']})")
+                if result.get("relative_robustness") is not None:
+                    print(f"  {provider_name} noise-robustness: relative={result['relative_robustness']:.2%} drop={result['robustness_drop']:.2%} (noisy accuracy {result['noisy_accuracy']:.2%})")
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 print(f"{provider_name}: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
         print("=============================\n")
@@ -381,6 +420,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
+    parser.add_argument("--noise_ratio", type=float, default=0.0, help="Fraction [0-1] of controlled noise injected into SimpleQA search results to score noise-robustness (0 = off, default)")
+    parser.add_argument("--noise_strategy", default="truncate", help="Noise strategy for SimpleQA robustness: truncate, inject, drop, or +-joined combo (default: truncate)")
     
     args = parser.parse_args()
     
@@ -412,4 +453,6 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        noise_ratio=args.noise_ratio,
+        noise_strategy=args.noise_strategy,
     ))
