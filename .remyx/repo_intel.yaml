@@ -129,7 +129,14 @@ observed_landing_zones:
     call_site_specifics: (none)
     branch: a-corrective-agentic-hybrid-rag-and-an-operations-grounded-e
     timestamp: '2026-07-31T07:46:43Z'
-  last_observed: '2026-07-31T07:46:43Z'
+  - arxiv: 2608.06329v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: run_evaluation.run_evaluation() (the pre-existing pipeline,
+      invoked from the __main__ CLI block in run_evaluation.py) calls run_benchmark_audit()
+      when --audit_benchmark is set
+    branch: benchmarking-the-benchmarks-evaluating-benchmarks-for-conver
+    timestamp: '2026-08-09T18:51:01Z'
+  last_observed: '2026-08-09T18:51:01Z'
 - path: datasets/
   shape_tags:
   - unclassified
@@ -156,4 +163,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-09T01:18:50Z'
+last_updated: '2026-08-09T18:51:01Z'
