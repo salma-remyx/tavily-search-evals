@@ -202,3 +202,16 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Benchmark Quality Audit (Meta-Evaluation)**
+
+A reference-free, LLM-judge audit of the benchmark itself (the test set) rather than of predicted answers. When enabled with `--audit_benchmark`, the loaded questions are judged for **consistency** (is each item well-formed and unambiguous?) and **complexity** (does it demand real retrieval/reasoning, or is it trivially answerable?), and a parameter-free **coverage** diagnostic (question/answer uniqueness and lexical diversity) is computed. Results are written to `benchmark_audit.json` in the run's output directory, surfacing per-axis means, flagged-item counts, and coverage so weaknesses in the test set can be identified and fixed.
+
+- Adapted from _Benchmarking the Benchmarks: Evaluating Benchmarks for Conversational Agents_ (arxiv:2608.06329). The consistency and complexity axes are ported at full fidelity; the paper's policy-coverage axis (which requires a hand-defined policy taxonomy this repo does not carry) is approximated by the parameter-free coverage proxy, and the paper's validation apparatus (human annotations, controlled perturbations, cross-domain correlation) is intentionally out of scope here.
+
+### **Command Line Options (Benchmark Audit)**
+
+- `--audit_benchmark`: Run the reference-free LLM-judge audit of the test set before evaluation (default: off, so the existing path is unchanged).
+- `--benchmark_audit_model`: Model for the benchmark-quality audit judge (default: gpt-4.1).

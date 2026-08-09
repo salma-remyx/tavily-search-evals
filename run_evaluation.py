@@ -223,6 +223,49 @@ async def evaluate_provider_document_relevance(
         "quotient_client": quotient_client,
         "app_name": app_name
     }
+
+
+def run_benchmark_audit(examples, model_name, output_dir, sample_size=50):
+    """Reference-free audit of the loaded test set; writes benchmark_audit.json.
+
+    Adapted from arxiv:2608.06329. Consumes the per-provider ``examples``
+    dict produced by ``prepare_examples``, de-duplicates items across
+    providers, and records consistency / complexity / coverage diagnostics.
+    """
+    from evaluators.benchmark_quality_evaluator import (
+        BenchmarkQualityConfig,
+        BenchmarkQualityEvaluator,
+    )
+
+    seen = set()
+    items = []
+    for provider_items in examples.values():
+        for item in provider_items:
+            key = item.get("index", item.get("question"))
+            if key not in seen:
+                seen.add(key)
+                items.append(item)
+
+    auditor = BenchmarkQualityEvaluator(
+        BenchmarkQualityConfig(model_name=model_name, sample_size=sample_size)
+    )
+    report = auditor.audit(items)
+
+    os.makedirs(output_dir, exist_ok=True)
+    audit_path = os.path.join(output_dir, "benchmark_audit.json")
+    with open(audit_path, "w") as f:
+        json.dump(report, f, indent=2)
+
+    logger.info(
+        "Benchmark audit: consistency=%.2f complexity=%.2f flagged=%.1f%% "
+        "coverage=%.2f (n=%d/%d) -> %s",
+        report["mean_consistency"], report["mean_complexity"],
+        report["flagged_ratio"] * 100, report["coverage"]["coverage_score"],
+        report["n_judged"], report["n_total"], audit_path,
+    )
+    return report
+
+
 async def run_evaluation(
     evaluation_type: EvaluationType,
     search_provider_params: Dict[str, Dict[str, Any]],
@@ -236,6 +279,8 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    audit_benchmark: bool = False,
+    benchmark_audit_model: str = "gpt-4.1",
 ):
     """Run the benchmark evaluation using specified evaluation type.
     
@@ -249,6 +294,8 @@ async def run_evaluation(
         parallel: Whether to run evaluations for search providers in parallel
         output_dir: Directory to save results
         rerun: Whether to rerun evaluation on existing results directory, output_dir must exist
+        audit_benchmark: Run a reference-free LLM-judge audit of the test set before evaluation
+        benchmark_audit_model: Model for the benchmark-quality audit judge
     """
     try:
         if "exa" in search_provider_params:
@@ -258,6 +305,9 @@ async def run_evaluation(
         # Load and prepare data based on evaluation type
         examples = load_data(evaluation_type, start_index, end_index, random_sample)
         examples = prepare_examples(examples, list(search_provider_params.keys()), rerun, output_dir, random_sample, evaluation_type)
+
+        if audit_benchmark:
+            run_benchmark_audit(examples, benchmark_audit_model, output_dir)
     
         # Initialize search handlers
         search_handlers = await get_search_handlers(search_provider_params, token_model)
@@ -381,7 +431,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
-    
+    parser.add_argument("--audit_benchmark", action="store_true", help="Run a reference-free LLM-judge audit of the benchmark (test set) before evaluation")
+    parser.add_argument("--benchmark_audit_model", default="gpt-4.1", help="Model for the benchmark-quality audit judge")
+
     args = parser.parse_args()
     
     search_provider_params = {}
@@ -412,4 +464,6 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        audit_benchmark=args.audit_benchmark,
+        benchmark_audit_model=args.benchmark_audit_model,
     ))
