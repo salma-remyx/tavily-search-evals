@@ -202,3 +202,14 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Per-Provider Ability Estimation**
+
+After a SimpleQA evaluation, `save_summary` additionally fits a 1-parameter (Rasch) Item Response Theory model to the per-example correctness matrix across providers and writes two analysis artifacts next to `summary.csv`:
+
+- `irt_ability.csv` — each provider's estimated ability with a Fisher-information standard error and an approximate 95% interval, alongside raw accuracy. Ability accounts for *which* prompts each provider got right (prompt difficulty), so it is more comparable across providers than accuracy alone.
+- `informative_subset.csv` — prompts ranked by Fisher information (most discriminating first), with the top ~30% flagged as `recommended`. Re-running on just these prompts is a cheaper way to compare providers than random sampling.
+
+This is an opt-in output: it only runs for the SimpleQA benchmark and never affects `summary.csv` or the per-provider result files. Adapted from *Efficient multi-prompt evaluation of LLMs* (PromptEval); the Bayesian inference and active-learning loop from the paper are replaced with a dependency-free Joint Maximum Likelihood fit and the classical IRT Fisher-information ranking.

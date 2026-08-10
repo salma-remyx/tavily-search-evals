@@ -11,6 +11,8 @@ import random
 import uuid
 import shutil
 
+from utils.irt_ability import estimate_abilities
+
 
 
 class EvaluationType(Enum):
@@ -78,6 +80,15 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                 })
 
     logger.info(f"Saved summary results to {summary_file}")
+
+    # IRT ability estimation (PromptEval-style): model the per-example
+    # correctness matrix to give uncertainty-aware provider abilities and a
+    # minimal informative subset for cheaper future runs. SimpleQA only.
+    if evaluation_type == EvaluationType.SIMPLEQA:
+        try:
+            estimate_abilities(list(provider_results.keys()), output_dir)
+        except Exception as e:
+            logger.warning(f"IRT ability estimation skipped: {e}")
 
 
 def load_csv_data(
