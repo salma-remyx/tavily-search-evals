@@ -93,7 +93,14 @@ observed_landing_zones:
       arg threaded in at run_evaluation.py:410)
     branch: cost-of-pass-an-economic-framework-for-evaluating-language-m
     timestamp: '2026-08-07T14:08:37Z'
-  last_observed: '2026-08-09T01:18:50Z'
+  - arxiv: 2405.17202v3
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "utils/utils.py:save_summary \u2014 invoked from the existing\
+      \ run_evaluation.py:353 pipeline call; the new estimate_abilities runs in the\
+      \ EvaluationType.SIMPLEQA branch (the default --evaluation_type)."
+    branch: efficient-multi-prompt-evaluation-of-llms
+    timestamp: '2026-08-10T12:15:43Z'
+  last_observed: '2026-08-10T12:15:43Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -163,4 +170,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-09T18:51:01Z'
+last_updated: '2026-08-10T12:15:43Z'
