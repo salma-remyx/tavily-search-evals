@@ -143,7 +143,14 @@ observed_landing_zones:
       when --audit_benchmark is set
     branch: benchmarking-the-benchmarks-evaluating-benchmarks-for-conver
     timestamp: '2026-08-09T18:51:01Z'
-  last_observed: '2026-08-09T18:51:01Z'
+  - arxiv: 2608.02163v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: 'the run_evaluation.py CLI entry point: --evaluation_type
+      deep_research routes through load_data -> load_deep_research_tasks and run_evaluation
+      -> evaluate_provider_deep_research, with save_summary/sav'
+    branch: from-simple-qa-to-deep-research-a-verifiable-benchmark-const
+    timestamp: '2026-08-12T00:23:01Z'
+  last_observed: '2026-08-12T00:23:01Z'
 - path: datasets/
   shape_tags:
   - unclassified
@@ -170,4 +177,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-10T12:15:43Z'
+last_updated: '2026-08-12T00:23:01Z'
