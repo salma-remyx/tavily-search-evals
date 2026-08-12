@@ -13,6 +13,10 @@ This repository provides evaluation frameworks for benchmarking web search APIs,
     - Involves generating a dynamic dataset using the open-source [Dynamic Eval Datasets Generator](https://github.com/Eyalbenba/tavily-web-eval-generator).
     - You can use the provided dataset (`datasets/document_relevance_dynamic_test_set.json`) or easily create new datasets on topics of your choice with the above generator.
     - This flexibility allows evaluation on domain-specific or real-time topics, making the benchmark more reflective of production-like tasks than static datasets.
+3. Deep Research (Multi-hop) Benchmark
+    - Evolves a SimpleQA-style seed question into a small multi-hop task represented as a DAG of atomic steps, each with a fact-grounded checkpoint (adapted from *From Simple QA to Deep Research: A Verifiable Benchmark Constructed through Iterative Task Evolution*).
+    - Each step is searched sequentially; a step's query substitutes the answers resolved by its predecessors, and every checkpoint is graded with the existing SimpleQA correctness grader. A step whose required predecessor produced no answer is *blocked*, modelling the task's dependency structure.
+    - A task is solved only when all of its checkpoints are met, so the benchmark reports both task-level and per-checkpoint accuracy — probing multi-hop retrieval-and-synthesis capability beyond single-shot SimpleQA. Run with `--evaluation_type deep_research`.
 
 ### **Features**
 - Comparative evaluation of multiple search providers

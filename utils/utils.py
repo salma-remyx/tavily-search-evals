@@ -16,6 +16,7 @@ import shutil
 class EvaluationType(Enum):
     DOCUMENT_RELEVANCE = "document_relevance"
     SIMPLEQA = "simpleqa"
+    DEEP_RESEARCH = "deep_research"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -42,6 +43,8 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
             fieldnames = ['provider', 'accuracy', 'correct_count', 'total_count', 'timestamp']
         elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
             fieldnames = ['provider', 'relevant_docs_percentage', 'relevant_docs_count', 'total_docs_count', 'app_name', 'timestamp']
+        elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+            fieldnames = ['provider', 'task_accuracy', 'step_accuracy', 'tasks_passed', 'total_tasks', 'timestamp']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -64,6 +67,19 @@ def save_summary(provider_results: Dict, output_dir: str, evaluation_type: Evalu
                 'total_count': examples_count,
                 'timestamp': timestamp
             })
+            elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+                # Deep-research metrics are computed per provider during the run
+                # (task/step accuracy over checkpoint DAGs), so read them straight
+                # from provider_results like the document-relevance branch does.
+                provider_metrics = provider_results.get(provider_name, {})
+                writer.writerow({
+                    'provider': provider_name,
+                    'task_accuracy': provider_metrics.get('task_accuracy', 0.0),
+                    'step_accuracy': provider_metrics.get('step_accuracy', 0.0),
+                    'tasks_passed': provider_metrics.get('tasks_passed', 0),
+                    'total_tasks': provider_metrics.get('total_tasks', 0),
+                    'timestamp': timestamp
+                })
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 # For Document Relevance, get the metrics from the provider_results directly
                 # since they're calculated at the provider level, not stored in individual CSV files
@@ -149,6 +165,11 @@ def prepare_examples(
 ) -> Dict[str, List[Dict]]:
     examples = {provider: [] for provider in provider_names}
 
+    # Deep-research tasks are pre-built checkpoint DAGs, not (problem, answer)
+    # rows; hand the same task list to every provider and skip row-wise prep.
+    if evaluation_type == EvaluationType.DEEP_RESEARCH:
+        return {provider: list(df) for provider in provider_names}
+
     for provider in provider_names:
         if not rerun or (random_sample is not None and random_sample > 0) or not os.path.exists(f"{results_dir}/{provider}_{evaluation_type.value}_results.csv"):
             for _, row in df.iterrows():
@@ -205,6 +226,8 @@ def save_result(result: Dict, provider_name: str, output_dir: str, evaluation_ty
         fieldnames = ['index', 'question', 'reference_answer', 'predicted_answer', 'is_correct', 'grade', 'token_count', 'token_avg']
     elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
         fieldnames = ['index', 'question', 'token_count', 'token_avg', 'grade']
+    elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+        fieldnames = ['index', 'task_id', 'seed_question', 'step_id', 'step_question', 'checkpoint', 'predicted_answer', 'is_correct', 'grade', 'blocked', 'token_count', 'token_avg']
 
     file_exists = os.path.exists(f"{output_dir}/{provider_name}_{evaluation_type.value}_results.csv")
     write_mode = 'a' if file_exists else 'w'

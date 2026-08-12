@@ -11,7 +11,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 
 
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
-from evaluators import CorrectnessEvaluator
+from evaluators import CorrectnessEvaluator, evaluate_provider_deep_research, load_deep_research_tasks
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
 
 load_dotenv()
@@ -36,6 +36,8 @@ def get_dataset_path(evaluation_type: EvaluationType) -> str:
         return "datasets/document_relevance_dynamic_test_set.json"
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return "datasets/simple_qa_test_set.csv"
+    elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+        return "deep_research (built-in evolved task catalog)"
 
 
 def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: Optional[int] = None, random_sample: Optional[int] = None):
@@ -46,6 +48,8 @@ def load_data(evaluation_type: EvaluationType, start_index: int = 0, end_index: 
         return load_document_relevance_eval_data(dataset_path, start_index, end_index, random_sample)
     elif evaluation_type == EvaluationType.SIMPLEQA:
         return load_csv_data(dataset_path, start_index, end_index, random_sample)
+    elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+        return load_deep_research_tasks(start_index, end_index, random_sample)
 
 
 async def get_search_handlers(search_provider_params: Dict[str, Dict[str, Any]], token_model: str = "gpt-4.1"):
@@ -291,6 +295,16 @@ async def run_evaluation(
                         examples[provider_name],
                         environment="test",
                     )
+                elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+                    task = evaluate_provider_deep_research(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        post_processor,
+                        evaluator_model,
+                        output_dir=output_dir,
+                        evaluation_type=evaluation_type,
+                    )
                 tasks.append(task)
             
             # Wait for all evaluations to complete
@@ -316,6 +330,16 @@ async def run_evaluation(
                         handler,
                         examples[provider_name],
                         environment="test",
+                    )
+                elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+                    result = await evaluate_provider_deep_research(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        post_processor,
+                        evaluator_model,
+                        output_dir=output_dir,
+                        evaluation_type=evaluation_type,
                     )
                 provider_results[provider_name] = result
         
@@ -361,6 +385,8 @@ async def run_evaluation(
                 print(f"{provider_name}: {result['accuracy']:.2%} ({result['correct_count']}/{result['total_count']})")
             elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                 print(f"{provider_name}: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
+            elif evaluation_type == EvaluationType.DEEP_RESEARCH:
+                print(f"{provider_name}: {result['task_accuracy']:.2%} tasks ({result['tasks_passed']}/{result['total_tasks']}), checkpoint accuracy {result['step_accuracy']:.2%}")
         print("=============================\n")
         
         return provider_results
@@ -370,7 +396,7 @@ async def run_evaluation(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run benchmark evaluation using specified evaluation type")
-    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value], help="Type of evaluation to run (simpleqa or document_relevance)")
+    parser.add_argument("--evaluation_type", default=EvaluationType.SIMPLEQA.value, choices=[EvaluationType.SIMPLEQA.value, EvaluationType.DOCUMENT_RELEVANCE.value, EvaluationType.DEEP_RESEARCH.value], help="Type of evaluation to run (simpleqa, document_relevance, or deep_research)")
     parser.add_argument("--config", default="configs/config.json", type=str, help="Path to JSON config file with provider parameters")
     parser.add_argument("--start_index", type=int, default=0, help="Starting index for examples (inclusive)")
     parser.add_argument("--end_index", type=int, default=None, help="Ending index for examples (exclusive)")
