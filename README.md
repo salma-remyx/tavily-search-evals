@@ -202,3 +202,23 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Multi-run Consistency Audit (SimpleQA)**
+
+A single SimpleQA run reports one accuracy number per provider, which hides how stable a provider's answers are. The optional multi-run consistency audit runs each example several times and reports the behavioral variation across runs, on top of accuracy:
+
+- **Grade consistency** — fraction of examples whose grade (CORRECT / INCORRECT / NOT_ATTEMPTED) was identical across every run, plus the inconsistent count and rate.
+- **Accuracy stability** — per-run accuracy plus its mean and standard deviation across runs.
+- **Answer similarity** — mean pairwise similarity of the predicted answers across runs (1.0 = identical wording every run).
+- **Abstention consistency** — whether each example abstained (NOT_ATTEMPTED) consistently across runs.
+
+Enable it with `--runs` (SimpleQA only):
+
+```sh
+python run_evaluation.py --runs 3
+```
+
+`--runs 1` (the default) keeps the original single-run behavior unchanged. When `--runs` is greater than 1, a `multirun_consistency.csv` is written next to `summary.csv` in the results directory, with one row per provider. The implementation lives in `utils/multirun_consistency.py`.
+

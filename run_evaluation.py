@@ -13,6 +13,7 @@ from evaluators.correctness_evaluator import CorrectnessConfig
 from handlers import TavilyHandler, ExaHandler, GPTRHandler, PerplexityHandler, SerperHandler, BraveHandler, PerplexitySearchHandler
 from evaluators import CorrectnessEvaluator
 from utils import PostProcessor, save_summary, load_csv_data, load_document_relevance_eval_data, prepare_examples, get_output_dir, save_result, get_quotient_ai_client, EvaluationType, copy_config_to_results
+from utils.multirun_consistency import measure_provider_consistency, save_consistency_summary
 
 load_dotenv()
 
@@ -236,9 +237,10 @@ async def run_evaluation(
     parallel: bool = True,
     output_dir: str = "results",
     rerun: bool = False,
+    runs: int = 1,
 ):
     """Run the benchmark evaluation using specified evaluation type.
-    
+
     Args:
         evaluation_type: Type of evaluation (EvaluationType.DOCUMENT_RELEVANCE or EvaluationType.SIMPLEQA)
         search_provider_params: Dictionary mapping search provider names to their parameters
@@ -249,6 +251,10 @@ async def run_evaluation(
         parallel: Whether to run evaluations for search providers in parallel
         output_dir: Directory to save results
         rerun: Whether to rerun evaluation on existing results directory, output_dir must exist
+        runs: Number of times to run each SimpleQA example. ``runs == 1`` (default)
+            keeps the original single-run behavior; ``runs > 1`` enables the
+            multi-run consistency audit (see utils.multirun_consistency) and
+            writes ``multirun_consistency.csv`` alongside ``summary.csv``.
     """
     try:
         if "exa" in search_provider_params:
@@ -276,14 +282,25 @@ async def run_evaluation(
             # Evaluate providers in parallel
             tasks = []
             for handler, provider_name in zip(search_handlers, provider_names):
-                if evaluation_type == EvaluationType.SIMPLEQA:
+                if evaluation_type == EvaluationType.SIMPLEQA and runs > 1:
+                    task = measure_provider_consistency(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        post_processor,
+                        output_dir,
+                        evaluation_type,
+                        evaluator_model,
+                        n_runs=runs,
+                    )
+                elif evaluation_type == EvaluationType.SIMPLEQA:
                     task = evaluate_provider_simple_qa(
                         provider_name,
                         handler,
                         examples[provider_name],
                         post_processor,
                         evaluator_model,
-                    ) 
+                    )
                 elif evaluation_type == EvaluationType.DOCUMENT_RELEVANCE:
                     task = evaluate_provider_document_relevance(
                         provider_name,
@@ -302,7 +319,18 @@ async def run_evaluation(
             # Evaluate providers sequentially
             for handler, provider_name in zip(search_handlers, provider_names):
                 logger.info(f"Evaluating provider: {provider_name}")
-                if evaluation_type == EvaluationType.SIMPLEQA:
+                if evaluation_type == EvaluationType.SIMPLEQA and runs > 1:
+                    result = await measure_provider_consistency(
+                        provider_name,
+                        handler,
+                        examples[provider_name],
+                        post_processor,
+                        output_dir,
+                        evaluation_type,
+                        evaluator_model,
+                        n_runs=runs,
+                    )
+                elif evaluation_type == EvaluationType.SIMPLEQA:
                     result = await evaluate_provider_simple_qa(
                         provider_name,
                         handler,
@@ -350,6 +378,9 @@ async def run_evaluation(
                     logger.info(f"[{provider_name}] Relevance stats: {result['relevant_docs_percentage']:.1f}% ({result['relevant_docs']}/{result['total_docs']})")
                     
 
+        if runs > 1 and evaluation_type == EvaluationType.SIMPLEQA:
+            save_consistency_summary(provider_results, output_dir)
+
         save_summary(provider_results, output_dir, evaluation_type)
 
         print("\n===== EVALUATION RESULTS =====")
@@ -381,6 +412,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="results", help="Directory to save results")
     parser.add_argument("--sequential", action="store_true", help="Run providers sequentially instead of in parallel")
     parser.add_argument("--rerun", action="store_true", help="Rerun evaluation on existing results directory, output_dir must exist")
+    parser.add_argument("--runs", type=int, default=1, help="Number of times to run each SimpleQA example when measuring multi-run consistency (default: 1 keeps the original single-run behavior). runs > 1 enables the consistency audit and writes multirun_consistency.csv")
     
     args = parser.parse_args()
     
@@ -412,4 +444,5 @@ if __name__ == "__main__":
         parallel=not args.sequential,
         output_dir=output_dir,
         rerun=args.rerun,
+        runs=args.runs,
     ))
