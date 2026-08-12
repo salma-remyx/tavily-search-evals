@@ -100,7 +100,14 @@ observed_landing_zones:
       \ EvaluationType.SIMPLEQA branch (the default --evaluation_type)."
     branch: efficient-multi-prompt-evaluation-of-llms
     timestamp: '2026-08-10T12:15:43Z'
-  last_observed: '2026-08-10T12:15:43Z'
+  - arxiv: 2608.06202v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: '`run_evaluation()` in `run_evaluation.py`, reached via the
+      new `--runs` CLI flag: the `runs > 1` branch sits alongside the existing `evaluate_provider_simple_qa`
+      call in both the parallel and sequenti'
+    branch: what-current-ai-benchmarks-leave-unmeasured-modality-search-
+    timestamp: '2026-08-12T19:48:00Z'
+  last_observed: '2026-08-12T19:48:00Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -177,4 +184,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-12T00:23:01Z'
+last_updated: '2026-08-12T19:48:00Z'
