@@ -202,3 +202,24 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Dynamic Exam Generation (auto-rag-eval)**
+
+Generate a task-specific short-answer exam from your own document corpus and score providers on it, instead of (or alongside) the static SimpleQA set. The generated exam is written in the same `metadata,problem,answer` schema as `datasets/simple_qa_test_set.csv`, so it is graded by the existing `CorrectnessEvaluator` + `evaluate_provider_simple_qa` pipeline unchanged — no new scoring path.
+
+- An LLM turns a corpus of documents into corpus-grounded `{question, answer}` items plus plausible distractors.
+- A parameter-free item-quality gate (distractor sanity + corpus-grounding overlap) drops unsound items before scoring.
+- Output is a drop-in SimpleQA CSV; use `--evaluate` to score providers on the freshly generated exam in the same run.
+
+**Usage:**
+```sh
+# Generate a drop-in exam CSV from a corpus (file or directory of text/markdown)
+python generate_exam.py --corpus path/to/docs --topic "My topic" --n_questions 20
+
+# Generate and immediately score providers on it via the existing pipeline
+python generate_exam.py --corpus path/to/docs --topic "My topic" --evaluate --config configs/config.json
+```
+
+Adapted from Es et al., *"Automated Evaluation of Retrieval-Augmented Language Models with Task-Specific Exam Generation"* (arXiv:2405.13622). The exam generator is ported at fidelity; the paper's separate MCQ scoring harness is replaced by this repo's existing SimpleQA grading, and its fitted IRT item-calibration is replaced by the parameter-free quality gate (full fitted IRT is downstream scope). See `utils/exam_generator.py` for details.
