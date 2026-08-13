@@ -107,7 +107,12 @@ observed_landing_zones:
       call in both the parallel and sequenti'
     branch: what-current-ai-benchmarks-leave-unmeasured-modality-search-
     timestamp: '2026-08-12T19:48:00Z'
-  last_observed: '2026-08-12T19:48:00Z'
+  - arxiv: 2405.13622v1
+    mode: ''
+    call_site_specifics: ''
+    branch: automated-evaluation-of-retrieval-augmented-language-models-
+    timestamp: '2026-08-13T17:18:30Z'
+  last_observed: '2026-08-13T17:18:30Z'
 - path: evaluators/
   shape_tags:
   - unclassified
@@ -184,4 +189,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-12T19:48:00Z'
+last_updated: '2026-08-13T17:18:30Z'
