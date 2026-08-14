@@ -1,2 +1,3 @@
 from .correctness_evaluator import CorrectnessEvaluator
-all = [CorrectnessEvaluator]
+from .schema_extraction_evaluator import SchemaExtractionEvaluator
+all = [CorrectnessEvaluator, SchemaExtractionEvaluator]

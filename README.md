@@ -202,3 +202,44 @@ Remember to implement appropriate error handling and respect any rate limits or 
 ## **License**
 
 This project is made available under the [MIT License](https://github.com/tavily-ai/tavily-mcp/blob/main/LICENCE).
+
+---
+
+## **Schema-Guided Extraction Evaluation**
+
+Adapted from [Schema-Guided Hierarchical Information Extraction and Semantic Evaluation Using Generative AI](https://arxiv.org/abs/2608.06167).
+
+`SchemaExtractionEvaluator` (in `evaluators/schema_extraction_evaluator.py`) goes beyond a relevance percentage: it extracts a structured, hierarchical record from the documents a provider retrieved — in a single zero-shot call — then grades each attribute against a gold standard.
+
+- **Schema as information model**: attributes are nested and may have variable cardinality (e.g. `supporting_snippets` is a list of `{quote, url}` records). The schema is passed to the extractor and drives evaluation.
+- **Path-based matching**: extracted and gold records are flattened into cardinality-agnostic paths (`supporting_snippets[].quote`) and aligned by path, so a different number of snippets in each still compares correctly.
+- **Four-way rubric**: each aligned pair is graded `EXACT`, `SEMANTIC`, `USEFUL`, or `NON_MATCH`, with trivial cases decided deterministically (no model call).
+
+Use it alongside `CorrectnessEvaluator` for a given provider's retrieved documents and gold answer:
+
+```python
+from evaluators import SchemaExtractionEvaluator
+
+evaluator = SchemaExtractionEvaluator()
+report = await evaluator.evaluate(
+    inputs={"query": query, "documents": documents},
+    outputs={},
+    reference_outputs={"answer": example["answer"]},
+)
+# report["value"] -> {"EXACT": 2, "SEMANTIC": 1, "USEFUL": 1, "NON_MATCH": 0}
+# report["score"] -> partial-credit average over graded attributes
+```
+
+Pass a custom schema for domain-specific extraction:
+
+```python
+from evaluators.schema_extraction_evaluator import SchemaAttribute, SchemaExtractionEvaluator
+
+schema = [
+    SchemaAttribute("product_name", "Name of the product."),
+    SchemaAttribute("price", "Price of the product."),
+]
+evaluator = SchemaExtractionEvaluator(schema=schema)
+```
+
+Tests live in `tests/test_schema_extraction_evaluator.py`.
