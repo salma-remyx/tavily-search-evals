@@ -162,7 +162,14 @@ observed_landing_zones:
       -> evaluate_provider_deep_research, with save_summary/sav'
     branch: from-simple-qa-to-deep-research-a-verifiable-benchmark-const
     timestamp: '2026-08-12T00:23:01Z'
-  last_observed: '2026-08-12T00:23:01Z'
+  - arxiv: 2608.06167v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "(none) \u2014 exported from `evaluators/__init__.py` alongside\
+      \ `CorrectnessEvaluator`, but no pre-existing module invokes it; `run_evaluation.py:14`\
+      \ imports only `CorrectnessEvaluator`. Callers are the REA"
+    branch: schema-guided-hierarchical-information-extraction-and-semant
+    timestamp: '2026-08-14T14:56:37Z'
+  last_observed: '2026-08-14T14:56:37Z'
 - path: datasets/
   shape_tags:
   - unclassified
@@ -189,4 +196,4 @@ rejected_shapes:
   - arxiv: 2603.08819v2
     timestamp: '2026-08-08T06:35:16Z'
 coordination_signals: []
-last_updated: '2026-08-13T17:18:30Z'
+last_updated: '2026-08-14T14:56:37Z'
